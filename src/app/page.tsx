@@ -1,3 +1,4 @@
+// Deployment trigger
 import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
 import { Users, Target, MessageCircle, BarChart3, Clock } from 'lucide-react'
