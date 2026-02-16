@@ -1,0 +1,136 @@
+﻿
+> temp_app@0.1.0 dev
+> next dev
+
+node.exe : node:inter
+nal/modules/cjs/loade
+r:1404
+En C:\Program Files\n
+odejs\npm.ps1: 29 
+Carácter: 3
++   & $NODE_EXE 
+$NPM_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (node:in   
+ ternal/modules/c    
+js/loader:1404:S    
+tring) [], Remot    
+eException
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  throw err;
+  ^
+
+Error: Cannot find 
+module '../shared/lib
+/errors/canary-only-c
+onfig-error'
+Require stack:
+- C:\Users\nigonzalez
+c\Desktop\ASESOR25\Li
+gthouse\nexo\mvp - 
+crm agencia\node_modu
+les\next\dist\server\
+config-shared.js
+- C:\Users\nigonzalez
+c\Desktop\ASESOR25\Li
+gthouse\nexo\mvp - 
+crm agencia\node_modu
+les\next\dist\server\
+config.js
+- C:\Users\nigonzalez
+c\Desktop\ASESOR25\Li
+gthouse\nexo\mvp - 
+crm agencia\node_modu
+les\next\dist\cli\nex
+t-test.js
+- C:\Users\nigonzalez
+c\Desktop\ASESOR25\Li
+gthouse\nexo\mvp - 
+crm agencia\node_modu
+les\next\dist\bin\nex
+t
+    at 
+Function.<anonymous> 
+(node:internal/module
+s/cjs/loader:1401:15)
+    at C:\Users\nigon
+zalezc\Desktop\ASESOR
+25\Ligthouse\nexo\mvp
+ - crm agencia\node_m
+odules\next\dist\serv
+er\require-hook.js:57
+:36
+    at 
+defaultResolveImpl (n
+ode:internal/modules/
+cjs/loader:1057:19)
+    at resolveForCJSW
+ithHooks (node:intern
+al/modules/cjs/loader
+:1062:22)
+    at 
+Function._load (node:
+internal/modules/cjs/
+loader:1211:37)
+    at TracingChannel
+.traceSync (node:diag
+nostics_channel:322:1
+4)
+    at 
+wrapModuleLoad (node:
+internal/modules/cjs/
+loader:235:24)
+    at 
+Module.<anonymous> (n
+ode:internal/modules/
+cjs/loader:1487:12)
+    at mod.require (C
+:\Users\nigonzalezc\D
+esktop\ASESOR25\Ligth
+ouse\nexo\mvp - crm a
+gencia\node_modules\n
+ext\dist\server\requi
+re-hook.js:68:28)
+    at require (node:
+internal/modules/help
+ers:135:16) {
+  code: 
+'MODULE_NOT_FOUND',
+  requireStack: [
+    'C:\\Users\\nigon
+zalezc\\Desktop\\ASES
+OR25\\Ligthouse\\nexo
+\\mvp - crm agencia\\
+node_modules\\next\\d
+ist\\server\\config-s
+hared.js',
+    'C:\\Users\\nigon
+zalezc\\Desktop\\ASES
+OR25\\Ligthouse\\nexo
+\\mvp - crm agencia\\
+node_modules\\next\\d
+ist\\server\\config.j
+s',
+    'C:\\Users\\nigon
+zalezc\\Desktop\\ASES
+OR25\\Ligthouse\\nexo
+\\mvp - crm agencia\\
+node_modules\\next\\d
+ist\\cli\\next-test.j
+s',
+    'C:\\Users\\nigon
+zalezc\\Desktop\\ASES
+OR25\\Ligthouse\\nexo
+\\mvp - crm agencia\\
+node_modules\\next\\d
+ist\\bin\\next'
+  ]
+}
+
+Node.js v22.16.0
