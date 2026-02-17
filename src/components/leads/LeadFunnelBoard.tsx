@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { LeadCard } from './LeadCard'
 import { MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus, Plus, FileUp, UserCheck, X, Filter, ChevronDown, ChevronRight, User } from 'lucide-react'
 import { ImportLeadsDialog } from './ImportLeadsDialog'
@@ -208,7 +208,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
                         onClick={() => setIsCreateOpen(true)}
                         className="flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-lg"
                     >
-                        <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuevo</span> Prospecto
+                        <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Nuevo</span> Prospecto v2
                     </button>
 
                     {isAdmin && (
