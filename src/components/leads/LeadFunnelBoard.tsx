@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { LeadCard } from './LeadCard'
-import { MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus, Plus, FileUp, UserCheck, X, Filter } from 'lucide-react'
+import { MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus, Plus, FileUp, UserCheck, X, Filter, ChevronDown, ChevronRight, User } from 'lucide-react'
 import { ImportLeadsDialog } from './ImportLeadsDialog'
 import { CreateLeadDialog } from './CreateLeadDialog'
 import { MassAssignDialog } from './MassAssignDialog'
@@ -54,6 +54,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
     const [isSelectionMode, setIsSelectionMode] = useState(false)
     const [discardFilter, setDiscardFilter] = useState<string>('all')
     const [activeTab, setActiveTab] = useState(0)
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
     const router = useRouter()
 
     const toggleSelectionMode = () => {
@@ -97,6 +98,105 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
             }
             return true
         })
+    }
+
+    const toggleGroup = (groupId: string) => {
+        setExpandedGroups(prev => ({
+            ...prev,
+            [groupId]: !prev[groupId]
+        }))
+    }
+
+    const renderLeadsByAdvisor = (stageLeads: Lead[], stageName: string) => {
+        if (!isAdmin) {
+            return (
+                <div className="space-y-4">
+                    {stageLeads.length > 0 ? (
+                        stageLeads.map((lead) => (
+                            <LeadCard
+                                key={lead.id}
+                                lead={lead}
+                                isAdmin={isAdmin}
+                                isSelected={selectedLeads.includes(lead.id)}
+                                onSelect={isSelectionMode ? handleSelectLead : undefined}
+                                userProfile={userProfile}
+                            />
+                        ))
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-white/10 rounded-2xl opacity-40">
+                            <p className="text-xs font-medium">Sin prospectos</p>
+                        </div>
+                    )}
+                </div>
+            )
+        }
+
+        // Grouping logic for Admin
+        const leadsByAdvisor = stageLeads.reduce((acc, lead) => {
+            const advisorName = lead.assigned_to_name || 'Sin Asignar'
+            if (!acc[advisorName]) acc[advisorName] = []
+            acc[advisorName].push(lead)
+            return acc
+        }, {} as Record<string, Lead[]>)
+
+        const advisors = Object.keys(leadsByAdvisor).sort((a, b) => {
+            if (a === 'Sin Asignar') return 1
+            if (b === 'Sin Asignar') return -1
+            return a.localeCompare(b)
+        })
+
+        if (advisors.length === 0) {
+            return (
+                <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-white/10 rounded-2xl opacity-40">
+                    <p className="text-xs font-medium">Sin prospectos</p>
+                </div>
+            )
+        }
+
+        return (
+            <div className="space-y-3">
+                {advisors.map(advisor => {
+                    const advisorLeads = leadsByAdvisor[advisor]
+                    const groupId = `${stageName}-${advisor}`
+                    const isExpanded = expandedGroups[groupId]
+
+                    return (
+                        <div key={groupId} className="space-y-2">
+                            <button
+                                onClick={() => toggleGroup(groupId)}
+                                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <div className={`p-1.5 rounded-lg ${advisor === 'Sin Asignar' ? 'bg-slate-500/10' : 'bg-blue-500/10'}`}>
+                                        <User className={`w-3.5 h-3.5 ${advisor === 'Sin Asignar' ? 'text-slate-500' : 'text-blue-500'}`} />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{advisor}</p>
+                                        <p className="text-[10px] text-slate-500">{advisorLeads.length} lead{advisorLeads.length !== 1 ? 's' : ''}</p>
+                                    </div>
+                                </div>
+                                {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" /> : <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />}
+                            </button>
+
+                            {isExpanded && (
+                                <div className="space-y-3 pl-2 border-l-2 border-white/10 animate-in slide-in-from-top-2 duration-300">
+                                    {advisorLeads.map((lead) => (
+                                        <LeadCard
+                                            key={lead.id}
+                                            lead={lead}
+                                            isAdmin={isAdmin}
+                                            isSelected={selectedLeads.includes(lead.id)}
+                                            onSelect={isSelectionMode ? handleSelectLead : undefined}
+                                            userProfile={userProfile}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+        )
     }
 
     return (
@@ -227,24 +327,9 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
                                     </div>
                                 </div>
 
-                                {/* Cards */}
-                                <div className="space-y-3 max-h-[calc(100vh-320px)] overflow-y-auto custom-scrollbar pr-1">
-                                    {stageLeads.length > 0 ? (
-                                        stageLeads.map((lead) => (
-                                            <LeadCard
-                                                key={lead.id}
-                                                lead={lead}
-                                                isAdmin={isAdmin}
-                                                isSelected={selectedLeads.includes(lead.id)}
-                                                onSelect={isSelectionMode ? handleSelectLead : undefined}
-                                                userProfile={userProfile}
-                                            />
-                                        ))
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-white/10 rounded-2xl opacity-40">
-                                            <p className="text-xs font-medium">Sin prospectos</p>
-                                        </div>
-                                    )}
+                                {/* Cards grouped by Advisor */}
+                                <div className="mt-2 max-h-[calc(100vh-320px)] overflow-y-auto custom-scrollbar pr-1">
+                                    {renderLeadsByAdvisor(stageLeads, stage.name)}
                                 </div>
                             </div>
                         )
@@ -314,23 +399,8 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                                {stageLeads.length > 0 ? (
-                                    stageLeads.map((lead) => (
-                                        <LeadCard
-                                            key={lead.id}
-                                            lead={lead}
-                                            isAdmin={isAdmin}
-                                            isSelected={selectedLeads.includes(lead.id)}
-                                            onSelect={isSelectionMode ? handleSelectLead : undefined}
-                                            userProfile={userProfile}
-                                        />
-                                    ))
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-white/10 rounded-2xl opacity-40">
-                                        <p className="text-xs font-medium">Sin prospectos</p>
-                                    </div>
-                                )}
+                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                {renderLeadsByAdvisor(stageLeads, stage.name)}
                             </div>
                         </div>
                     )
