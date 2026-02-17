@@ -10,7 +10,7 @@ interface MessageTemplateDialogProps {
     onClose: () => void
 }
 
-const DEFAULT_TEMPLATE = "Hola [Nombre], soy [Asesor] de Nexo Seguros. Te contacto porque tenemos una propuesta que puede interesarte. ¿Tenés unos minutos?"
+const DEFAULT_TEMPLATE = "Hola [Nombre] 👋"
 
 export const MessageTemplateDialog = ({ isOpen, onClose }: MessageTemplateDialogProps) => {
     const [template, setTemplate] = useState(DEFAULT_TEMPLATE)

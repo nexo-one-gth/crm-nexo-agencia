@@ -220,3 +220,43 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
     revalidatePath('/funnel')
     return { success: true }
 }
+
+export async function addLeadComment(leadId: string, content: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'No autenticado' }
+
+    const { error } = await supabase
+        .from('activities')
+        .insert({
+            lead_id: leadId,
+            user_id: user.id,
+            type: 'comment',
+            content
+        })
+
+    if (error) {
+        console.error('Error adding comment:', error)
+        return { success: false, error: error.message }
+    }
+
+    revalidatePath('/funnel')
+    return { success: true }
+}
+
+export async function getLeadActivities(leadId: string) {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false })
+
+    if (error) {
+        console.error('Error fetching activities:', error)
+        return []
+    }
+
+    return data
+}

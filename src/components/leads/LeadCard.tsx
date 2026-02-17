@@ -1,12 +1,14 @@
 'use client'
 
-import { Phone, User, MessageCircle, Calendar, ChevronRight, ChevronDown } from 'lucide-react'
+import { Phone, User, MessageCircle, Calendar, ChevronRight, ChevronDown, MessageSquare } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { logWhatsAppActivity, updateLeadStage } from '@/app/actions/lead-actions'
 
 import { toast } from 'sonner'
 
 import { WhatsAppModal } from '@/components/leads/WhatsAppModal'
+import { LeadCommentsModal } from '@/components/leads/LeadCommentsModal'
 
 interface LeadCardProps {
     lead: {
@@ -46,8 +48,10 @@ const DISCARD_REASONS = [
 export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: LeadCardProps) => {
     const [isExpanded, setIsExpanded] = useState(false)
     const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false)
+    const [isCommentsOpen, setIsCommentsOpen] = useState(false)
     const [isDiscardOpen, setIsDiscardOpen] = useState(false)
     const discardRef = useRef<HTMLDivElement>(null)
+    const router = useRouter()
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -73,6 +77,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                 ? `Descartado: ${discardReason}`
                 : `Etapa actualizada a ${newStageName}`
             toast.success(msg)
+            router.refresh()
         } else {
             toast.error('Error al actualizar la etapa: ' + result.error)
         }
@@ -243,11 +248,21 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                         )}
                     </div>
 
-                    <button className="w-full py-2.5 sm:py-2 rounded-lg bg-white/10 dark:bg-white/5 hover:bg-white/20 text-xs font-bold transition-all flex items-center justify-center gap-1 active:scale-95">
-                        Ver Detalles <ChevronRight className="w-3 h-3" />
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setIsCommentsOpen(true) }}
+                        className="w-full py-2.5 sm:py-2 rounded-lg bg-blue-600/10 dark:bg-blue-600/20 hover:bg-blue-600/30 text-blue-700 dark:text-blue-400 border border-blue-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1 active:scale-95"
+                    >
+                        Comentarios <MessageSquare className="w-3 h-3" />
                     </button>
                 </div>
             )}
+
+            <LeadCommentsModal
+                isOpen={isCommentsOpen}
+                onClose={() => setIsCommentsOpen(false)}
+                leadId={lead.id}
+                leadName={`${lead.first_name} ${lead.last_name}`}
+            />
         </div>
     )
 }
