@@ -44,8 +44,8 @@ export async function importLeadsAction(formData: FormData) {
 
         if (!stage) return { success: false, error: 'Etapa de asignación no encontrada. Por favor contacte soporte.' }
 
-        const validLeads: any[] = []
         const errors: any[] = []
+        let importedCount = 0
 
         const normalizedData = rawData.map(row => {
             const normalized: any = {};
@@ -57,42 +57,58 @@ export async function importLeadsAction(formData: FormData) {
 
         for (let i = 0; i < normalizedData.length; i++) {
             const row = normalizedData[i];
+            let validated: LeadImportData
+
             try {
-                const validated = LeadImportSchema.parse(row)
-
-                // Split name if possible (very basic split)
-                const nameParts = validated.NOMBRE.split(' ')
-                const firstName = nameParts[0]
-                const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.'
-
-                validLeads.push({
-                    first_name: firstName,
-                    last_name: lastName, // some DBs require it
-                    phone: validated.CELULAR,
-                    email: validated.MAIL || null,
-                    dni: validated.DNI || null,
-                    address_state: validated.PROVINCIA || null,
-                    address_city: validated.LOCALIDAD || null,
-                    stage_id: stage.id,
-                    assigned_to: null,
-                    source: 'Importación Excel',
-                    notes: `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''}`.trim()
-                })
+                validated = LeadImportSchema.parse(row)
             } catch (err: any) {
                 console.error(`Error en fila ${i + 2}:`, err);
                 let errorMsg = 'Datos inválidos';
                 if (err instanceof z.ZodError) {
-                    errorMsg = err.issues.map(iss => `${iss.path.join('.')}: ${iss.message}`).join(', ');
+                    errorMsg = err.issues.map((iss: any) => `${iss.path.join('.')}: ${iss.message}`).join(', ');
                 }
                 errors.push({ row: i + 2, error: errorMsg })
+                continue
             }
-        }
 
-        if (validLeads.length > 0) {
-            const { error: insertError } = await supabase.from('leads').insert(validLeads)
+            // Split name if possible (very basic split)
+            const nameParts = validated.NOMBRE.split(' ')
+            const firstName = nameParts[0]
+            const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.'
+
+            const leadData = {
+                first_name: firstName,
+                last_name: lastName,
+                phone: validated.CELULAR,
+                email: validated.MAIL || null,
+                // DNI vacío → null para no violar el constraint UNIQUE
+                dni: validated.DNI && validated.DNI.trim() !== '' ? validated.DNI.trim() : null,
+                address_state: validated.PROVINCIA || null,
+                address_city: validated.LOCALIDAD || null,
+                stage_id: stage.id,
+                assigned_to: null,
+                source: 'Importación Excel',
+                notes: `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''}`.trim()
+            }
+
+            // Insertar fila por fila para manejar errores individuales (ej. DNI duplicado)
+            const { error: insertError } = await supabase.from('leads').insert(leadData)
+
             if (insertError) {
-                console.error('Insert error:', insertError)
-                return { success: false, error: 'Error al insertar los datos en la base de datos' }
+                console.error(`Error insertando fila ${i + 2}:`, insertError)
+                let errorMsg = 'Error al insertar en la base de datos'
+                if (insertError.code === '23505') {
+                    if (insertError.message.includes('dni')) {
+                        errorMsg = `DNI duplicado: ${validated.DNI}`
+                    } else if (insertError.message.includes('phone')) {
+                        errorMsg = `Teléfono duplicado: ${validated.CELULAR}`
+                    } else {
+                        errorMsg = 'Registro duplicado (ya existe en la base de datos)'
+                    }
+                }
+                errors.push({ row: i + 2, error: errorMsg })
+            } else {
+                importedCount++
             }
         }
 
@@ -100,7 +116,7 @@ export async function importLeadsAction(formData: FormData) {
         return {
             success: true,
             data: {
-                imported: validLeads.length,
+                imported: importedCount,
                 failed: errors.length,
                 errors
             }

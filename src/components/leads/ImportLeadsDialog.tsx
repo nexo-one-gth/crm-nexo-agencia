@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { SimpleModal } from '@/components/ui/SimpleModal'
-import { FileUp, Loader2, CheckCircle2, AlertCircle, Download } from 'lucide-react'
+import { FileUp, Loader2, CheckCircle2, AlertCircle, XCircle, Download } from 'lucide-react'
 import { importLeadsAction } from '@/app/actions/import-leads'
 import { toast } from 'sonner'
 
@@ -26,10 +26,16 @@ export const ImportLeadsDialog = ({ isOpen, onClose, onSuccess }: ImportLeadsDia
 
         if (res.success && res.data) {
             setResult(res.data)
-            toast.success(`Se importaron ${res.data.imported} leads correctamente`)
-            onSuccess()
+            if (res.data.imported > 0) {
+                toast.success(`Se importaron ${res.data.imported} leads correctamente`)
+                onSuccess()
+            }
+            if (res.data.failed > 0) {
+                toast.warning(`${res.data.failed} fila(s) no pudieron importarse`)
+            }
         } else {
-            toast.error(res.error || 'Error al importar leads')
+            // Error total (ej. archivo inválido, sin autenticación)
+            setResult({ imported: 0, failed: 1, errors: [{ row: '-', error: res.error || 'Error desconocido' }] })
         }
         setIsSubmitting(false)
     }
@@ -87,7 +93,7 @@ export const ImportLeadsDialog = ({ isOpen, onClose, onSuccess }: ImportLeadsDia
                                 <AlertCircle className="w-4 h-4" /> Importante:
                             </p>
                             <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                                Los leads importados se cargarán sin asesor asignado en la etapa "Pendiente de Asignación".
+                                Los leads importados se cargarán sin asesor asignado en la etapa &quot;Pendiente de Asignación&quot;.
                             </p>
                             <button
                                 type="button"
@@ -114,10 +120,18 @@ export const ImportLeadsDialog = ({ isOpen, onClose, onSuccess }: ImportLeadsDia
                 ) : (
                     <div className="space-y-6 text-center animate-in zoom-in-95 duration-300">
                         <div className="flex flex-col items-center gap-2">
-                            <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
-                                <CheckCircle2 className="w-10 h-10 text-green-500" />
-                            </div>
-                            <h3 className="text-xl font-bold">Importación Finalizada</h3>
+                            {result.imported > 0 ? (
+                                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                                    <CheckCircle2 className="w-10 h-10 text-green-500" />
+                                </div>
+                            ) : (
+                                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center">
+                                    <XCircle className="w-10 h-10 text-red-500" />
+                                </div>
+                            )}
+                            <h3 className="text-xl font-bold">
+                                {result.imported > 0 ? 'Importación Finalizada' : 'Error en la Importación'}
+                            </h3>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
