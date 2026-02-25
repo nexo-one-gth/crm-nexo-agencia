@@ -8,26 +8,54 @@ import { toast } from 'sonner'
 interface MessageTemplateDialogProps {
     isOpen: boolean
     onClose: () => void
+    stageName?: string
 }
 
 const DEFAULT_TEMPLATE = "Hola [Nombre] 👋"
 
-export const MessageTemplateDialog = ({ isOpen, onClose }: MessageTemplateDialogProps) => {
+const STAGE_LABELS: Record<string, string> = {
+    'Pendiente': 'Pendiente',
+    'Contactado': 'Contactado',
+    'Interesado': 'Interesado',
+}
+
+const getStorageKey = (stageName: string): string => {
+    const normalized = stageName.toLowerCase().replace(/\s+/g, '_')
+    return `whatsapp_template_${normalized}`
+}
+
+export const MessageTemplateDialog = ({ isOpen, onClose, stageName = 'Pendiente' }: MessageTemplateDialogProps) => {
     const [template, setTemplate] = useState(DEFAULT_TEMPLATE)
 
     useEffect(() => {
         if (isOpen) {
-            const saved = localStorage.getItem('whatsapp_pending_template')
-            if (saved) setTemplate(saved)
+            const stageKey = getStorageKey(stageName)
+            let saved = localStorage.getItem(stageKey)
+
+            // Retrocompatibilidad: migrar key vieja para "Pendiente"
+            if (!saved && stageName === 'Pendiente') {
+                const legacy = localStorage.getItem('whatsapp_pending_template')
+                if (legacy) {
+                    saved = legacy
+                    localStorage.setItem(stageKey, legacy)
+                }
+            }
+
+            setTemplate(saved || DEFAULT_TEMPLATE)
         }
-    }, [isOpen])
+    }, [isOpen, stageName])
 
     const handleSave = () => {
         if (!template.trim()) {
             toast.error('El mensaje no puede estar vacío')
             return
         }
-        localStorage.setItem('whatsapp_pending_template', template)
+        const stageKey = getStorageKey(stageName)
+        localStorage.setItem(stageKey, template)
+        // Mantener la key legacy sincronizada para Pendiente
+        if (stageName === 'Pendiente') {
+            localStorage.setItem('whatsapp_pending_template', template)
+        }
         toast.success('Plantilla guardada correctamente')
         onClose()
     }
@@ -37,6 +65,8 @@ export const MessageTemplateDialog = ({ isOpen, onClose }: MessageTemplateDialog
         toast.info('Plantilla restablecida al valor original')
     }
 
+    const stageLabel = STAGE_LABELS[stageName] || stageName
+
     return (
         <SimpleModal isOpen={isOpen} onClose={onClose} title="Configurar Mensaje Inicial">
             <div className="space-y-4">
@@ -44,13 +74,13 @@ export const MessageTemplateDialog = ({ isOpen, onClose }: MessageTemplateDialog
                     <p className="font-bold mb-1">Variables Disponibles:</p>
                     <ul className="list-disc list-inside space-y-1 opacity-80">
                         <li><code>[Nombre]</code>: Nombre del prospecto</li>
-                        <li><code>[Asesor]</code>: Tu nombre (o "tu asesor")</li>
+                        <li><code>[Asesor]</code>: Tu nombre (o &quot;tu asesor&quot;)</li>
                     </ul>
                 </div>
 
                 <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        Mensaje para "Pendiente"
+                        Mensaje para &quot;{stageLabel}&quot;
                     </label>
                     <textarea
                         value={template}

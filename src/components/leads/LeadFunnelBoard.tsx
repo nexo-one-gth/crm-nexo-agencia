@@ -49,7 +49,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
     const [isImportOpen, setIsImportOpen] = useState(false)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [isAssignOpen, setIsAssignOpen] = useState(false)
-    const [isTemplateOpen, setIsTemplateOpen] = useState(false)
+    const [templateStage, setTemplateStage] = useState<string | null>(null)
     const [selectedLeads, setSelectedLeads] = useState<string[]>([])
     const [isSelectionMode, setIsSelectionMode] = useState(false)
     const [discardFilter, setDiscardFilter] = useState<string>('all')
@@ -310,9 +310,9 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
                                                 <Filter className="w-3 h-3 absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                                             </div>
                                         )}
-                                        {stage.name === 'Pendiente' && (
+                                        {['Pendiente', 'Contactado', 'Interesado'].includes(stage.name) && (
                                             <button
-                                                onClick={() => setIsTemplateOpen(true)}
+                                                onClick={() => setTemplateStage(stage.name)}
                                                 className="group relative p-1.5 rounded-lg hover:bg-green-500/10 text-green-600 transition-colors"
                                                 title="Configurar mensaje inicial"
                                             >
@@ -379,9 +379,9 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
                                             <Filter className="w-3 h-3 absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                                         </div>
                                     )}
-                                    {stage.name === 'Pendiente' && (
+                                    {['Pendiente', 'Contactado', 'Interesado'].includes(stage.name) && (
                                         <button
-                                            onClick={() => setIsTemplateOpen(true)}
+                                            onClick={() => setTemplateStage(stage.name)}
                                             className="group relative p-1 rounded-lg hover:bg-green-500/10 text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 transition-colors"
                                             title="Configurar mensaje inicial"
                                         >
@@ -425,8 +425,9 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
             />
 
             <MessageTemplateDialog
-                isOpen={isTemplateOpen}
-                onClose={() => setIsTemplateOpen(false)}
+                isOpen={templateStage !== null}
+                onClose={() => setTemplateStage(null)}
+                stageName={templateStage || 'Pendiente'}
             />
 
             <CreateLeadDialog

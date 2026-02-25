@@ -36,11 +36,13 @@ export const WhatsAppModal = ({ isOpen, onClose, lead, userName }: WhatsAppModal
 
     useEffect(() => {
         if (isOpen) {
-            // Load template or default message
-            const savedTemplate = localStorage.getItem('whatsapp_pending_template')
+            // Load template based on lead's stage, with fallback chain
+            const stageNormalized = (lead.stage_name || 'pendiente').toLowerCase().replace(/\s+/g, '_')
+            const stageTemplate = localStorage.getItem(`whatsapp_template_${stageNormalized}`)
+            const legacyTemplate = localStorage.getItem('whatsapp_pending_template')
             const defaultMessage = `Hola [Nombre] 👋`
 
-            let msg = savedTemplate || defaultMessage
+            let msg = stageTemplate || legacyTemplate || defaultMessage
 
             // Reemplazar variables
             msg = msg.replace(/\[Nombre\]/g, lead.first_name)
