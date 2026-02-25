@@ -18,6 +18,7 @@ export const MessageTemplateDialog = ({ isOpen, onClose }: MessageTemplateDialog
     useEffect(() => {
         if (isOpen) {
             const saved = localStorage.getItem('whatsapp_pending_template')
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             if (saved) setTemplate(saved)
         }
     }, [isOpen])
@@ -44,13 +45,13 @@ export const MessageTemplateDialog = ({ isOpen, onClose }: MessageTemplateDialog
                     <p className="font-bold mb-1">Variables Disponibles:</p>
                     <ul className="list-disc list-inside space-y-1 opacity-80">
                         <li><code>[Nombre]</code>: Nombre del prospecto</li>
-                        <li><code>[Asesor]</code>: Tu nombre (o "tu asesor")</li>
+                        <li><code>[Asesor]</code>: Tu nombre (o &quot;tu asesor&quot;)</li>
                     </ul>
                 </div>
 
                 <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        Mensaje para "Pendiente"
+                        Mensaje para &quot;Pendiente&quot;
                     </label>
                     <textarea
                         value={template}

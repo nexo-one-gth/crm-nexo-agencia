@@ -37,8 +37,15 @@ export default async function DashboardPage() {
     .is('deleted_at', null)
 
   const stageCounts: Record<string, number> = {}
-  stageData?.forEach((lead: any) => {
-    const stageName = lead.pipeline_stages?.name || 'Otro'
+  stageData?.forEach((lead: { pipeline_stages: { name: string } | { name: string }[] | null, [key: string]: unknown }) => {
+    let stageName = 'Otro'
+    if (lead.pipeline_stages) {
+      if (Array.isArray(lead.pipeline_stages)) {
+        stageName = lead.pipeline_stages[0]?.name || 'Otro'
+      } else {
+        stageName = lead.pipeline_stages.name || 'Otro'
+      }
+    }
     stageCounts[stageName] = (stageCounts[stageName] || 0) + 1
   })
 
@@ -161,26 +168,30 @@ export default async function DashboardPage() {
           </h3>
           <div className="space-y-3 sm:space-y-4">
             {recentActivities && recentActivities.length > 0 ? (
-              recentActivities.map((activity: any) => (
-                <div key={activity.id} className="flex items-center gap-3 sm:gap-4 p-3 rounded-xl bg-white/5 border border-white/10">
-                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-green-500/20 flex items-center justify-center text-green-600 shrink-0">
-                    <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+              recentActivities.map((activity: { id: string, created_at: string, leads: { first_name: string, last_name: string } | { first_name: string, last_name: string }[], [key: string]: unknown }) => {
+                const leadFirst = Array.isArray(activity.leads) ? activity.leads[0]?.first_name : activity.leads?.first_name
+                const leadLast = Array.isArray(activity.leads) ? activity.leads[0]?.last_name : activity.leads?.last_name
+                return (
+                  <div key={activity.id} className="flex items-center gap-3 sm:gap-4 p-3 rounded-xl bg-white/5 border border-white/10">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-green-500/20 flex items-center justify-center text-green-600 shrink-0">
+                      <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate">
+                        {leadFirst} {leadLast}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {new Date(activity.created_at).toLocaleString('es-AR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          day: '2-digit',
+                          month: 'short'
+                        })}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">
-                      {activity.leads?.first_name} {activity.leads?.last_name}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(activity.created_at).toLocaleString('es-AR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        day: '2-digit',
-                        month: 'short'
-                      })}
-                    </p>
-                  </div>
-                </div>
-              ))
+                )
+              })
             ) : (
               <div className="flex flex-col items-center justify-center h-36 sm:h-48 border-2 border-dashed border-white/10 rounded-2xl opacity-40">
                 <p className="text-sm font-medium">Sin actividad reciente</p>

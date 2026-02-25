@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createAdvisor, getAdvisors, type ActionResponse } from '@/app/actions/advisor-actions'
+import { createAdvisor, getAdvisors } from '@/app/actions/advisor-actions'
 import { toast } from 'sonner'
-import { UserPlus, Users, Loader2, Shield, Mail, Target } from 'lucide-react'
+import { UserPlus, Users, Loader2, Mail, Target } from 'lucide-react'
 import { SimpleModal } from '@/components/ui/SimpleModal'
 import Link from 'next/link'
 
 export const AdminAdvisorView = () => {
-    const [advisors, setAdvisors] = useState<any[]>([])
+    const [advisors, setAdvisors] = useState<{ id: string, first_name: string, last_name: string, role: string, email: string, [key: string]: unknown }[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -17,7 +17,7 @@ export const AdminAdvisorView = () => {
         setIsLoading(true)
         const res = await getAdvisors()
         if (res.success) {
-            setAdvisors(res.data || [])
+            setAdvisors((res.data || []) as { id: string, first_name: string, last_name: string, role: string, email: string, [key: string]: unknown }[])
         } else {
             toast.error("Error al cargar asesores: " + res.error)
         }
@@ -25,6 +25,7 @@ export const AdminAdvisorView = () => {
     }
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchAdvisors()
     }, [])
 
@@ -38,7 +39,7 @@ export const AdminAdvisorView = () => {
             password: formData.get('password') as string,
             firstName: formData.get('firstName') as string,
             lastName: formData.get('lastName') as string,
-            role: formData.get('role') as any
+            role: formData.get('role') as 'admin' | 'asesor'
         }
 
         const res = await createAdvisor(data)

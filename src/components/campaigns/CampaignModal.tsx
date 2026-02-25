@@ -18,7 +18,7 @@ export const CampaignModal = ({
     onSuccess,
 }: CampaignModalProps) => {
     const [loading, setLoading] = useState(false)
-    const [advisors, setAdvisors] = useState<any[]>([])
+    const [advisors, setAdvisors] = useState<{ id: string, first_name: string, last_name: string, email: string, [key: string]: unknown }[]>([])
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -63,7 +63,7 @@ export const CampaignModal = ({
             } else {
                 toast.error(result.error || 'Error al crear la campaña')
             }
-        } catch (error) {
+        } catch {
             toast.error('Error inesperado')
         } finally {
             setLoading(false)

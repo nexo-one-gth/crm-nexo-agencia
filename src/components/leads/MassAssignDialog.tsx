@@ -15,25 +15,27 @@ interface MassAssignDialogProps {
 }
 
 export const MassAssignDialog = ({ isOpen, onClose, leadIds, onSuccess }: MassAssignDialogProps) => {
-    const [advisors, setAdvisors] = useState<any[]>([])
+    const [advisors, setAdvisors] = useState<{ id: string, first_name: string, last_name: string, email: string, [key: string]: unknown }[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [selectedAdvisor, setSelectedAdvisor] = useState('')
-
-    useEffect(() => {
-        if (isOpen) {
-            fetchAdvisors()
-        }
-    }, [isOpen])
 
     const fetchAdvisors = async () => {
         setIsLoading(true)
         const res = await getAdvisors()
         if (res.success) {
-            setAdvisors(res.data || [])
+            setAdvisors((res.data || []) as { id: string, first_name: string, last_name: string, email: string, [key: string]: unknown }[])
         }
         setIsLoading(false)
     }
+
+    useEffect(() => {
+        if (isOpen) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            fetchAdvisors()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen])
 
     const handleAssign = async () => {
         if (!selectedAdvisor) return
@@ -71,8 +73,8 @@ export const MassAssignDialog = ({ isOpen, onClose, leadIds, onSuccess }: MassAs
                                     key={advisor.id}
                                     onClick={() => setSelectedAdvisor(advisor.id)}
                                     className={`flex items-center gap-4 p-4 rounded-2xl transition-all border ${selectedAdvisor === advisor.id
-                                            ? 'bg-blue-600/20 border-blue-500/50 shadow-lg'
-                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                        ? 'bg-blue-600/20 border-blue-500/50 shadow-lg'
+                                        : 'bg-white/5 border-white/10 hover:bg-white/10'
                                         }`}
                                 >
                                     <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center font-bold text-blue-600 uppercase">

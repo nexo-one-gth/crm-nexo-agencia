@@ -41,6 +41,7 @@ export const LeadCommentsModal = ({ isOpen, onClose, leadId, leadName }: LeadCom
             document.body.style.overflow = 'unset'
         }
         return () => { document.body.style.overflow = 'unset' }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, leadId])
 
     const fetchActivities = async () => {

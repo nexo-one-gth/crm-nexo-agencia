@@ -23,7 +23,7 @@ export async function getAdvisorLeads() {
         return []
     }
 
-    return data.map((lead: any) => ({
+    return data.map((lead: { pipeline_stages: { name: string }, [key: string]: unknown }) => ({
         ...lead,
         stage_name: lead.pipeline_stages.name
     }))
@@ -82,7 +82,7 @@ export async function logWhatsAppActivity(leadId: string) {
     return updateLeadStage(leadId, 'Contactado')
 }
 
-export async function createLead(values: any) {
+export async function createLead(values: { first_name: string; last_name: string; phone: string; dni?: string; cuil?: string; os?: string; notes?: string; source?: string }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'No autenticado' }
@@ -172,7 +172,7 @@ export async function getAllLeads() {
         return []
     }
 
-    return data.map((lead: any) => ({
+    return data.map((lead: { pipeline_stages: { name: string }, assigned_to_profile: { first_name: string, last_name: string }, [key: string]: unknown }) => ({
         ...lead,
         stage_name: lead.pipeline_stages.name,
         assigned_to_name: lead.assigned_to_profile ? `${lead.assigned_to_profile.first_name} ${lead.assigned_to_profile.last_name}` : 'No asignado'

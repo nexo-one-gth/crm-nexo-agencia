@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 
 export const useWhatsAppMessage = () => {
     const generateLink = useCallback((phone: string, firstName: string) => {

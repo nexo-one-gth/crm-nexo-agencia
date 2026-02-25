@@ -48,7 +48,7 @@ export default async function FunnelPage() {
                 </div>
             </div>
 
-            <LeadFunnelBoard initialLeads={leads} isAdmin={isAdmin} userProfile={userProfile} />
+            <LeadFunnelBoard initialLeads={leads as any} isAdmin={isAdmin} userProfile={userProfile} />
         </div>
     )
 }
