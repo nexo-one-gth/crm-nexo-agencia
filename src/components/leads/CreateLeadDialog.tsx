@@ -21,13 +21,13 @@ export const CreateLeadDialog = ({ isOpen, onClose, onSuccess }: CreateLeadDialo
 
         const formData = new FormData(e.currentTarget)
         const values = {
-            first_name: formData.get('first_name'),
-            last_name: formData.get('last_name') || '.',
-            phone: formData.get('phone'),
-            dni: formData.get('dni'),
-            cuil: formData.get('cuil'),
-            os: formData.get('os'),
-            notes: formData.get('notes'),
+            first_name: formData.get('first_name') as string,
+            last_name: (formData.get('last_name') as string) || '.',
+            phone: formData.get('phone') as string,
+            dni: formData.get('dni') as string || undefined,
+            cuil: formData.get('cuil') as string || undefined,
+            os: formData.get('os') as string || undefined,
+            notes: formData.get('notes') as string || undefined,
             source: 'Manual'
         }
 

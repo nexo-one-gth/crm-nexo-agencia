@@ -13,7 +13,7 @@ const advisorSchema = z.object({
     role: z.enum(['admin', 'asesor']).default('asesor')
 })
 
-export type ActionResponse<T = any> = {
+export type ActionResponse<T = unknown> = {
     success: boolean
     data?: T
     error?: string
@@ -69,12 +69,12 @@ export const createAdvisor = async (formData: z.infer<typeof advisorSchema>): Pr
         revalidatePath('/admin/advisors')
         return { success: true }
 
-    } catch (err: any) {
-        return { success: false, error: err.message || "Ocurrió un error inesperado" }
+    } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : "Ocurrió un error inesperado" }
     }
 }
 
-export const getAdvisors = async (): Promise<ActionResponse<any[]>> => {
+export const getAdvisors = async (): Promise<ActionResponse<Record<string, unknown>[]>> => {
     const supabase = await createClient()
 
     const { data, error } = await supabase

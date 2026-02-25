@@ -44,13 +44,13 @@ export async function importLeadsAction(formData: FormData) {
 
         if (!stage) return { success: false, error: 'Etapa de asignación no encontrada. Por favor contacte soporte.' }
 
-        const errors: any[] = []
+        const errors: { row: number, error: string }[] = []
         let importedCount = 0
 
         const normalizedData = rawData.map(row => {
-            const normalized: any = {};
+            const normalized: Record<string, unknown> = {};
             Object.keys(row as object).forEach(key => {
-                normalized[key.trim().toUpperCase()] = (row as any)[key];
+                normalized[key.trim().toUpperCase()] = (row as Record<string, unknown>)[key];
             });
             return normalized;
         });
@@ -61,11 +61,11 @@ export async function importLeadsAction(formData: FormData) {
 
             try {
                 validated = LeadImportSchema.parse(row)
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error(`Error en fila ${i + 2}:`, err);
                 let errorMsg = 'Datos inválidos';
                 if (err instanceof z.ZodError) {
-                    errorMsg = err.issues.map((iss: any) => `${iss.path.join('.')}: ${iss.message}`).join(', ');
+                    errorMsg = err.issues.map((iss: z.ZodIssue) => `${iss.path.join('.')}: ${iss.message}`).join(', ');
                 }
                 errors.push({ row: i + 2, error: errorMsg })
                 continue
@@ -122,8 +122,8 @@ export async function importLeadsAction(formData: FormData) {
             }
         }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Import error:', error)
-        return { success: false, error: error.message || 'Error desconocido' }
+        return { success: false, error: error instanceof Error ? error.message : 'Error desconocido' }
     }
 }

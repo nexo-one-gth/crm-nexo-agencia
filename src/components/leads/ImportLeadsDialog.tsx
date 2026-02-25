@@ -14,7 +14,7 @@ interface ImportLeadsDialogProps {
 
 export const ImportLeadsDialog = ({ isOpen, onClose, onSuccess }: ImportLeadsDialogProps) => {
     const [isSubmitting, setIsSubmitting] = useState(false)
-    const [result, setResult] = useState<{ imported: number; failed: number; errors: any[] } | null>(null)
+    const [result, setResult] = useState<{ imported: number; failed: number; errors: { row: number | string, error: string }[] } | null>(null)
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()

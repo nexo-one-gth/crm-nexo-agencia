@@ -7,19 +7,32 @@ import { Plus, Target, Users, TrendingUp, Package } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { BackButton } from '@/components/ui/BackButton'
 
+interface CampaignData {
+    id: string;
+    name: string;
+    total_leads: number;
+    delivered_leads: number;
+    remaining_leads: number;
+    daily_rhythm: number;
+    active: boolean;
+    advisor?: { first_name: string; last_name: string; email: string };
+    [key: string]: unknown;
+}
+
 export default function AdminCampaignsPage() {
-    const [campaigns, setCampaigns] = useState<any[]>([])
+    const [campaigns, setCampaigns] = useState<CampaignData[]>([])
     const [loading, setLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
 
     const loadCampaigns = async () => {
         setLoading(true)
         const data = await getCampaigns()
-        setCampaigns(data)
+        setCampaigns(data as CampaignData[])
         setLoading(false)
     }
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         loadCampaigns()
     }, [])
 

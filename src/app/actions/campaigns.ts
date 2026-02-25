@@ -99,7 +99,7 @@ export async function getCampaigns() {
 
     // Fetch counts of delivered leads for each campaign
     const campaignsWithStats = await Promise.all(
-        data.map(async (campaign: any) => {
+        data.map(async (campaign: { id: string; total_leads: number;[key: string]: unknown }) => {
             const { count, error: countError } = await supabase
                 .from('leads')
                 .select('*', { count: 'exact', head: true })

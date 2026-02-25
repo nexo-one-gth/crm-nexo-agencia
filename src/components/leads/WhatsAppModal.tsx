@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Send, Loader2, X, Phone, Mail, MapPin, Hash, User, MessageCircle } from 'lucide-react'
+import { Send, Loader2, X, Phone, MapPin, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useWhatsAppMessage } from '@/hooks/useWhatsAppMessage'
@@ -75,7 +75,7 @@ export const WhatsAppModal = ({ isOpen, onClose, lead, userName }: WhatsAppModal
             } else {
                 toast.error(result.error || 'Error al registrar actividad')
             }
-        } catch (error) {
+        } catch {
             toast.error('Error inesperado al procesar el envío')
         } finally {
             setIsSending(false)
