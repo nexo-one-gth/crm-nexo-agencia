@@ -15,6 +15,50 @@ const LeadImportSchema = z.object({
         const str = String(v || '').trim();
         return str && str.includes('@') ? str : '';
     }, z.string().optional()),
+    // --- Nuevos campos de migración crm-lh ---
+    NUMERO_TRAMITE: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    ORIGEN_DATO: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    CANTIDAD_INTEGRANTES: z.preprocess((v) => {
+        const n = Number(v);
+        return isNaN(n) ? undefined : n;
+    }, z.number().optional()),
+    EDADES: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    CUIL: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    CUIT_EMPLEADOR: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    OBRA_SOCIAL: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    OBSERVACIONES: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    PLAN: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    VALOR_PLAN: z.preprocess((v) => {
+        const n = Number(v);
+        return isNaN(n) ? undefined : n;
+    }, z.number().optional()),
+    DESCUENTO_APORTES: z.preprocess((v) => {
+        const n = Number(v);
+        return isNaN(n) ? undefined : n;
+    }, z.number().optional()),
+    DESCUENTO_COMERCIAL: z.preprocess((v) => {
+        const n = Number(v);
+        return isNaN(n) ? undefined : n;
+    }, z.number().optional()),
+    IVA: z.preprocess((v) => {
+        const n = Number(v);
+        return isNaN(n) ? undefined : n;
+    }, z.number().optional()),
+    VALOR_FINAL_SOCIO: z.preprocess((v) => {
+        const n = Number(v);
+        return isNaN(n) ? undefined : n;
+    }, z.number().optional()),
+    VALOR_FORECAST: z.preprocess((v) => {
+        const n = Number(v);
+        return isNaN(n) ? undefined : n;
+    }, z.number().optional()),
+    OBSERVACIONES_COTIZACION: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    ETAPA: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
+    NIVEL_INTERES: z.preprocess((v) => {
+        const n = Number(v);
+        return isNaN(n) ? 0 : n;
+    }, z.number().optional()),
+    RAZON_PERDIDA: z.preprocess((v) => String(v || '').trim(), z.string().optional()),
 })
 
 type LeadImportData = z.infer<typeof LeadImportSchema>
@@ -76,19 +120,38 @@ export async function importLeadsAction(formData: FormData) {
             const firstName = nameParts[0]
             const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.'
 
-            const leadData = {
+            // Clean phone: remove leading apostrophe from crm-lh export format
+            const cleanPhone = validated.CELULAR.replace(/^'/, '')
+
+            const leadData: Record<string, unknown> = {
                 first_name: firstName,
                 last_name: lastName,
-                phone: validated.CELULAR,
+                phone: cleanPhone,
                 email: validated.MAIL || null,
-                // DNI vacío → null para no violar el constraint UNIQUE
                 dni: validated.DNI && validated.DNI.trim() !== '' ? validated.DNI.trim() : null,
                 address_state: validated.PROVINCIA || null,
                 address_city: validated.LOCALIDAD || null,
                 stage_id: stage.id,
                 assigned_to: null,
-                source: 'Importación Excel',
-                notes: `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''}`.trim()
+                source: validated.ORIGEN_DATO || 'Importación Excel',
+                notes: validated.OBSERVACIONES || `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''}`.trim(),
+                // Nuevos campos de migración
+                numero_tramite: validated.NUMERO_TRAMITE || null,
+                cantidad_integrantes: validated.CANTIDAD_INTEGRANTES || null,
+                edades: validated.EDADES || null,
+                cuil: validated.CUIL || null,
+                cuit_empleador: validated.CUIT_EMPLEADOR || null,
+                obra_social: validated.OBRA_SOCIAL || null,
+                plan: validated.PLAN || null,
+                valor_plan: validated.VALOR_PLAN || null,
+                descuento_aportes: validated.DESCUENTO_APORTES || null,
+                descuento_comercial: validated.DESCUENTO_COMERCIAL || null,
+                iva: validated.IVA || null,
+                valor_final_socio: validated.VALOR_FINAL_SOCIO || null,
+                valor_forecast: validated.VALOR_FORECAST || null,
+                observaciones_cotizacion: validated.OBSERVACIONES_COTIZACION || null,
+                interest_level: validated.NIVEL_INTERES || 0,
+                discard_reason: validated.RAZON_PERDIDA || null,
             }
 
             // Insertar fila por fila para manejar errores individuales (ej. DNI duplicado)

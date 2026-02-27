@@ -41,7 +41,7 @@ export const ImportLeadsDialog = ({ isOpen, onClose, onSuccess }: ImportLeadsDia
     }
 
     const downloadTemplate = () => {
-        const headers = 'NOMBRE,DNI,PROVINCIA,LOCALIDAD,CELULAR,MAIL'
+        const headers = 'NOMBRE,DNI,PROVINCIA,LOCALIDAD,CELULAR,MAIL,NUMERO_TRAMITE,ORIGEN_DATO,CANTIDAD_INTEGRANTES,EDADES,CUIL,CUIT_EMPLEADOR,OBRA_SOCIAL,OBSERVACIONES,PLAN,VALOR_PLAN,DESCUENTO_APORTES,DESCUENTO_COMERCIAL,IVA,VALOR_FINAL_SOCIO,VALOR_FORECAST,OBSERVACIONES_COTIZACION,ETAPA,NIVEL_INTERES,RAZON_PERDIDA'
         const blob = new Blob([headers], { type: 'text/csv' })
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
