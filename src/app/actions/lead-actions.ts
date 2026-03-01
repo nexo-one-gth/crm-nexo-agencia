@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 
 export async function getAdvisorLeads() {
@@ -179,6 +180,34 @@ export async function getAllLeads() {
     }))
 }
 
+export async function getLeadById(id: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return null
+
+    const { data, error } = await supabase
+        .from('leads')
+        .select(`
+            *,
+            pipeline_stages!inner(id, name),
+            assigned_to_profile:profiles(first_name, last_name)
+        `)
+        .eq('id', id)
+        .is('deleted_at', null)
+        .single()
+
+    if (error) {
+        console.error('Error fetching lead by ID:', error)
+        return null
+    }
+
+    return {
+        ...data,
+        stage_name: data.pipeline_stages.name,
+        assigned_to_name: data.assigned_to_profile ? `${data.assigned_to_profile.first_name} ${data.assigned_to_profile.last_name}` : 'No asignado'
+    }
+}
+
 export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -259,4 +288,55 @@ export async function getLeadActivities(leadId: string) {
     }
 
     return data
+}
+
+// Update lead with validation
+export async function updateLead(data: Record<string, any>) {
+    const leadUpdateSchema = z.object({
+        id: z.string(),
+        first_name: z.string().optional(),
+        last_name: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+        dni: z.string().optional(),
+        address_state: z.string().optional(),
+        address_city: z.string().optional(),
+        obra_social: z.string().optional(),
+        cantidad_integrantes: z.number().int().optional(),
+        edades: z.string().optional(),
+        cuil: z.string().optional(),
+        cuit_empleador: z.string().optional(),
+        plan: z.string().optional(),
+        valor_plan: z.number().optional(),
+        iva: z.number().optional(),
+        descuento_aportes: z.number().optional(),
+        descuento_comercial: z.number().optional(),
+        valor_final_socio: z.number().optional(),
+        valor_forecast: z.number().optional(),
+        observaciones_cotizacion: z.string().optional(),
+        interest_level: z.number().int().optional(),
+        source: z.string().optional(),
+        notes: z.string().optional(),
+        assigned_to_name: z.string().optional(),
+        stage_name: z.string().optional(),
+        discard_reason: z.string().optional(),
+        numero_tramite: z.string().optional(),
+        documentacion_pendiente: z.string().optional()
+    });
+
+    const parseResult = leadUpdateSchema.safeParse(data);
+    if (!parseResult.success) {
+        return { success: false, error: 'Invalid lead data' };
+    }
+    const { id, ...updateFields } = parseResult.data;
+    const supabase = await createClient();
+    const { error } = await supabase.from('leads').update(updateFields).eq('id', id);
+    if (error) {
+        console.error('Error updating lead:', error);
+        return { success: false, error: error.message };
+    }
+    // Revalidate relevant pages
+    revalidatePath('/funnel');
+    revalidatePath('/');
+    return { success: true };
 }

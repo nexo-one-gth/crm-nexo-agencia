@@ -10,6 +10,9 @@ import { BottomNav } from "@/components/ui/BottomNav";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Helper: initial from name
+const getInitial = (name: string | null) => name ? name.charAt(0).toUpperCase() : 'U';
+
 export const metadata: Metadata = {
   title: "Nexo Asesores | MVP",
   description: "Plataforma de gestión de prospectos para asesores",
@@ -22,17 +25,38 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read user profile for the navbar
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  let displayName: string | null = null
+  let displayInitial = 'U'
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('first_name, last_name')
+      .eq('id', user.id)
+      .single()
+    if (profile?.first_name) {
+      displayName = profile.first_name
+      displayInitial = getInitial(profile.first_name)
+    } else if (user.email) {
+      displayName = user.email.split('@')[0]
+      displayInitial = getInitial(displayName)
+    }
+  }
+
   return (
     <html lang="es">
       <body className={inter.className}>
         <div className="min-h-screen flex flex-col">
           {/* Navigation */}
-          <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/5 border-b border-white/10 px-4 sm:px-6 py-3 sm:py-4">
+          <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/5 border-b border-white/10 px-4 sm:px-6 py-3">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
               <Link href="/" className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
@@ -43,7 +67,18 @@ export default function RootLayout({
                 </span>
               </Link>
 
-              <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                {/* User greeting (desktop) */}
+                {displayName && (
+                  <div className="hidden sm:flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-black shrink-0">
+                      {displayInitial}
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      {displayName}
+                    </span>
+                  </div>
+                )}
                 <Link
                   href="/settings"
                   className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-600 dark:text-slate-400"
