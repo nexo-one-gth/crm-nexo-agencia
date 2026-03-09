@@ -291,7 +291,7 @@ export async function getLeadActivities(leadId: string) {
 }
 
 // Update lead with validation
-export async function updateLead(data: Record<string, any>) {
+export async function updateLead(data: Record<string, unknown>) {
     const leadUpdateSchema = z.object({
         id: z.string(),
         first_name: z.string().optional(),

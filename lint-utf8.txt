@@ -1,0 +1,109 @@
+﻿
+> crm-nexo-agencia@0.2.0 lint
+> eslint
+
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\create-admin.js
+  2:26  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\app\actions\lead-actions.ts
+  294:55  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\app\funnel\page.tsx
+  51:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\app\login\page.tsx
+  48:18  warning  'err' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\app\page.tsx
+  3:10  warning  'Card' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\app\settings\page.tsx
+  16:28  warning  'error' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\components\leads\LeadCard.tsx
+    3:10   warning  'Phone' is defined but never used                     @typescript-eslint/no-unused-vars
+    3:17   warning  'User' is defined but never used                      @typescript-eslint/no-unused-vars
+    3:38   warning  'Calendar' is defined but never used                  @typescript-eslint/no-unused-vars
+    3:48   warning  'ChevronDown' is defined but never used               @typescript-eslint/no-unused-vars
+    3:76   warning  'DollarSign' is defined but never used                @typescript-eslint/no-unused-vars
+    3:88   warning  'Flame' is defined but never used                     @typescript-eslint/no-unused-vars
+    3:95   warning  'FileText' is defined but never used                  @typescript-eslint/no-unused-vars
+    3:113  warning  'Mail' is defined but never used                      @typescript-eslint/no-unused-vars
+    3:119  warning  'CreditCard' is defined but never used                @typescript-eslint/no-unused-vars
+    9:10   warning  'logWhatsAppActivity' is defined but never used       @typescript-eslint/no-unused-vars
+   62:7    warning  'DISCARD_REASONS' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   73:7    warning  'PIPELINE_STAGES' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   82:7    warning  'formatCurrency' is assigned a value but never used   @typescript-eslint/no-unused-vars
+   87:56   warning  'isAdmin' is defined but never used                   @typescript-eslint/no-unused-vars
+   96:11   warning  'hasQuoteData' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  129:11   warning  'handleDiscard' is assigned a value but never used    @typescript-eslint/no-unused-vars
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\components\leads\LeadCommentsModal.tsx
+  72:18  warning  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\components\leads\LeadDetailView.tsx
+    5:12   warning  'Mail' is defined but never used                                 @typescript-eslint/no-unused-vars
+    5:42   warning  'Clock' is defined but never used                                @typescript-eslint/no-unused-vars
+    5:49   warning  'CheckCircle2' is defined but never used                         @typescript-eslint/no-unused-vars
+    6:5    warning  'AlertCircle' is defined but never used                          @typescript-eslint/no-unused-vars
+    7:5    warning  'ChevronRight' is defined but never used                         @typescript-eslint/no-unused-vars
+    7:30   warning  'Send' is defined but never used                                 @typescript-eslint/no-unused-vars
+    7:45   warning  'UserCheck' is defined but never used                            @typescript-eslint/no-unused-vars
+    7:63   warning  'CreditCard' is defined but never used                           @typescript-eslint/no-unused-vars
+   12:35   warning  'getCompletionColor' is defined but never used                   @typescript-eslint/no-unused-vars
+   23:11   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  292:52   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  292:92   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  374:134  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  374:166  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  394:60   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\components\leads\LeadEditModal.tsx
+  9:55  warning  'COMPLETION_FIELDS' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\components\leads\LeadFunnelBoard.tsx
+  176:34   error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\components\leads\LeadFunnelBoard.tsx:176:34
+  174 |
+  175 |     const formatLastRefresh = (date: Date) => {
+> 176 |         const diff = Math.floor((Date.now() - date.getTime()) / 1000)
+      |                                  ^^^^^^^^^^ Cannot call impure function
+  177 |         if (diff < 60) return 'Ahora'
+  178 |         if (diff < 3600) return `hace ${Math.floor(diff / 60)}m`
+  179 |         return `hace ${Math.floor(diff / 3600)}h`  react-hooks/purity
+  418:110  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react/no-unescaped-entities
+  418:124  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react/no-unescaped-entities
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\components\leads\MassAssignDialog.tsx
+   5:10  warning  'Users' is defined but never used                                                                   @typescript-eslint/no-unused-vars
+  34:13  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/set-state-in-effect')
+  37:9   warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps')
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\components\leads\MessageTemplateDialog.tsx
+  44:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\components\leads\MessageTemplateDialog.tsx:44:13
+  42 |             }
+  43 |
+> 44 |             setTemplate(saved || DEFAULT_TEMPLATE)
+     |             ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  45 |         }
+  46 |     }, [isOpen, stageName])
+  47 |  react-hooks/set-state-in-effect
+
+C:\Users\nigonzalezc\Desktop\ASESOR25\Ligthouse\nexo\mvp - crm agencia\src\lib\utils\lead-completion.ts
+  29:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Ô£û 47 problems (14 errors, 33 warnings)
+  0 errors and 2 warnings potentially fixable with the `--fix` option.
+

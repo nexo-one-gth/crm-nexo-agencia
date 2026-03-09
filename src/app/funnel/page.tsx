@@ -48,6 +48,7 @@ export default async function FunnelPage() {
                 </div>
             </div>
 
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <LeadFunnelBoard initialLeads={leads as any} isAdmin={isAdmin} userProfile={userProfile} />
         </div>
     )

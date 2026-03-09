@@ -26,7 +26,7 @@ export const COMPLETION_FIELDS = [
  * @param lead El objeto lead a evaluar.
  * @returns Un número entre 0 y 100 representing el porcentaje de completación.
  */
-export const calculateLeadCompletion = (lead: any): number => {
+export const calculateLeadCompletion = (lead: Record<string, unknown>): number => {
     if (!lead) return 0
 
     let completedCount = 0

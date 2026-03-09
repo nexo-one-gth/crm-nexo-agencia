@@ -41,6 +41,7 @@ export const MessageTemplateDialog = ({ isOpen, onClose, stageName = 'Pendiente'
                 }
             }
 
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setTemplate(saved || DEFAULT_TEMPLATE)
         }
     }, [isOpen, stageName])

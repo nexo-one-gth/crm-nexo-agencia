@@ -173,6 +173,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
     }
 
     const formatLastRefresh = (date: Date) => {
+        // eslint-disable-next-line react-hooks/purity
         const diff = Math.floor((Date.now() - date.getTime()) / 1000)
         if (diff < 60) return 'Ahora'
         if (diff < 3600) return `hace ${Math.floor(diff / 60)}m`
@@ -415,7 +416,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
                         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20">
                             <Search className="w-3 h-3 text-blue-500" />
                             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
-                                {filteredLeads.length} resultado{filteredLeads.length !== 1 ? 's' : ''} para "{searchQuery}"
+                                {filteredLeads.length} resultado{filteredLeads.length !== 1 ? 's' : ''} para &quot;{searchQuery}&quot;
                             </span>
                         </div>
                     )}

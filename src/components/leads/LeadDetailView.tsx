@@ -20,6 +20,7 @@ interface Activity {
 }
 
 interface LeadDetailViewProps {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     lead: any
     activities: Activity[]
 }
@@ -289,7 +290,7 @@ export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
                                                 </div>
                                             </div>
                                             <div className="p-6 rounded-3xl bg-slate-500/5 border border-white/10 italic text-slate-500 text-sm leading-relaxed">
-                                                <p>"{lead.notes || 'Sin notas adicionales'}"</p>
+                                                <p>&quot;{lead.notes || 'Sin notas adicionales'}&quot;</p>
                                             </div>
                                         </div>
                                     </div>
@@ -371,7 +372,7 @@ export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
                                             {lead.observaciones_cotizacion && (
                                                 <div className="p-6 rounded-3xl bg-blue-500/5 border border-blue-500/10 space-y-2">
                                                     <h5 className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Observaciones</h5>
-                                                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic">"{lead.observaciones_cotizacion}"</p>
+                                                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic">&quot;{lead.observaciones_cotizacion}&quot;</p>
                                                 </div>
                                             )}
                                         </div>
@@ -391,7 +392,7 @@ export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
     )
 }
 
-const InfoRow = ({ label, value }: { label: string, value: any }) => (
+const InfoRow = ({ label, value }: { label: string, value: string | number | undefined | null }) => (
     <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-white/5 last:border-0 hover:bg-slate-500/5 transition-colors px-2 rounded-lg">
         <span className="text-[11px] font-black uppercase text-slate-400 tracking-widest">{label}</span>
         <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{value || '—'}</span>
