@@ -85,7 +85,7 @@ const sortLeads = (leads: Lead[], mode: SortMode): Lead[] => {
 }
 
 export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunnelBoardProps) => {
-    const [leads] = useState(initialLeads)
+    const leads = initialLeads
     const [isImportOpen, setIsImportOpen] = useState(false)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [isAssignOpen, setIsAssignOpen] = useState(false)
@@ -172,7 +172,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
         setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
     }
 
-    const formatLastRefresh = (date: Date) => {
+    const formatLastRefresh = (date: Date): string => {
         // eslint-disable-next-line react-hooks/purity
         const diff = Math.floor((Date.now() - date.getTime()) / 1000)
         if (diff < 60) return 'Ahora'

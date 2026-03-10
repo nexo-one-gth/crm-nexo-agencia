@@ -34,7 +34,7 @@ export const MassAssignDialog = ({ isOpen, onClose, leadIds, onSuccess }: MassAs
             // eslint-disable-next-line react-hooks/set-state-in-effect
             fetchAdvisors()
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
     }, [isOpen])
 
     const handleAssign = async () => {
