@@ -131,10 +131,9 @@ export async function importLeadsAction(formData: FormData) {
                 dni: validated.DNI && validated.DNI.trim() !== '' ? validated.DNI.trim() : null,
                 address_state: validated.PROVINCIA || null,
                 address_city: validated.LOCALIDAD || null,
-                stage_id: stage.id,
+                pipeline_stage_id: stage.id,
                 assigned_to: null,
-                source: validated.ORIGEN_DATO || 'Importación Excel',
-                notes: validated.OBSERVACIONES || `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''}`.trim(),
+                notes: validated.OBSERVACIONES || `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''} - Origen original: ${validated.ORIGEN_DATO || 'Importación Excel'}`.trim(),
                 // Nuevos campos de migración
                 numero_tramite: validated.NUMERO_TRAMITE || null,
                 cantidad_integrantes: validated.CANTIDAD_INTEGRANTES || null,
@@ -151,7 +150,6 @@ export async function importLeadsAction(formData: FormData) {
                 valor_forecast: validated.VALOR_FORECAST || null,
                 observaciones_cotizacion: validated.OBSERVACIONES_COTIZACION || null,
                 interest_level: validated.NIVEL_INTERES || 0,
-                discard_reason: validated.RAZON_PERDIDA || null,
             }
 
             // Insertar fila por fila para manejar errores individuales (ej. DNI duplicado)

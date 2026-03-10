@@ -37,7 +37,12 @@ export const createAdvisor = async (formData: z.infer<typeof advisorSchema>): Pr
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password,
-            email_confirm: true
+            email_confirm: true,
+            user_metadata: {
+                first_name: firstName,
+                last_name: lastName,
+                role: role
+            }
         })
 
         if (authError) {
@@ -48,25 +53,11 @@ export const createAdvisor = async (formData: z.infer<typeof advisorSchema>): Pr
             return { success: false, error: "No se pudo crear el usuario en Auth." }
         }
 
-        // 3. Crear perfil en la tabla 'profiles'
-        const supabase = await createClient()
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-                id: authUser.user.id,
-                email,
-                first_name: firstName,
-                last_name: lastName,
-                role
-            })
-
-        if (profileError) {
-            // Rollback manual (opcional, pero útil)
-            await supabaseAdmin.auth.admin.deleteUser(authUser.user.id)
-            return { success: false, error: `Error en Perfil: ${profileError.message}` }
-        }
+        // NOTA: No insertamos manualmente en 'profiles' porque el trigger 'on_auth_user_created'
+        // definido en la base de datos se encarga de hacerlo automáticamente usando la 'user_metadata'.
 
         revalidatePath('/admin/advisors')
+        return { success: true }
         return { success: true }
 
     } catch (err: unknown) {

@@ -1,12 +1,12 @@
 'use client'
 
-import { Phone, User, MessageCircle, Calendar, ChevronDown, MessageSquare, DollarSign, Flame, FileText, MapPin, Mail, CreditCard, Edit, CheckCircle2, Clock, Users, ExternalLink } from 'lucide-react'
+import { Phone, User, MessageCircle, Calendar, ChevronDown, MessageSquare, DollarSign, Flame, FileText, MapPin, Mail, CreditCard, Edit, CheckCircle2, Clock, Users, ExternalLink, Trash2 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { logWhatsAppActivity, updateLeadStage } from '@/app/actions/lead-actions'
+import { logWhatsAppActivity, updateLeadStage, deleteLeads } from '@/app/actions/lead-actions'
 import { calculateLeadCompletion, getCompletionColor } from '@/lib/utils/lead-completion'
 
 import { toast } from 'sonner'
@@ -131,6 +131,21 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
         handleStageUpdate('No Interesado', reason)
     }
 
+    const handleDelete = async (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (!confirm(`¿Estás seguro de que deseas eliminar a ${lead.first_name}? Esta acción no se puede deshacer.`)) {
+            return
+        }
+
+        const result = await deleteLeads([lead.id])
+        if (result.success) {
+            toast.success('Lead eliminado correctamente')
+            router.refresh()
+        } else {
+            toast.error('Error al eliminar lead: ' + result.error)
+        }
+    }
+
     const completion = calculateLeadCompletion(lead)
     const completionStyle = getCompletionColor(completion)
 
@@ -172,197 +187,146 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
         <>
             <div
                 onClick={() => onSelect ? onSelect(lead.id) : setIsExpanded(!isExpanded)}
-                className={`glass-card overflow-hidden rounded-3xl cursor-pointer hover:shadow-2xl hover:scale-[1.02] transition-all duration-500 group border-white/20 shadow-xl ${isSelected ? 'ring-4 ring-blue-500/50' : ''}`}
+                className={`glass-card overflow-hidden rounded-2xl cursor-pointer hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group shadow-sm flex bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-white/5 ${isSelected ? 'ring-2 ring-blue-500/50' : ''}`}
             >
-                {/* === HEADER CON GRADIENTE (SCREEN STYLE) === */}
-                <div className={`p-5 bg-gradient-to-br ${getStageStyle(lead.stage_name)} text-white relative overflow-hidden`}>
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+                {/* === BANDA DE COLOR LATERAL === */}
+                <div className={`w-1.5 shrink-0 bg-gradient-to-b ${getStageStyle(lead.stage_name)} opacity-80`} />
 
-                    <div className="flex justify-between items-start relative z-10">
-                        <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1.5 ">
-                                <div className="bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/20">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">{lead.stage_name}</span>
-                                </div>
-                                {lead.assigned_to_name === 'No asignado' && (
-                                    <div className="text-[9px] font-bold opacity-70 flex items-center gap-1">
-                                        <div className="w-1.5 h-1.5 rounded-full border border-white" />
-                                        Sin asignar
+                {/* === CONTENIDO PRINCIPAL COMPACTO === */}
+                <div className="flex-1 p-2.5 flex flex-col gap-2 min-w-0">
+
+                    {/* Fila 1: Header denso */}
+                    <div className="flex justify-between items-start">
+                        <div className="flex flex-col min-w-0 pr-2">
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <h4 className="text-sm font-black tracking-tight text-slate-800 dark:text-slate-100 truncate" title={`${lead.first_name} ${lead.last_name !== '.' ? lead.last_name : ''}`}>
+                                    {lead.first_name} {lead.last_name !== '.' ? lead.last_name : ''}
+                                </h4>
+                                {lead.cantidad_integrantes && lead.cantidad_integrantes > 1 && (
+                                    <div className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-[9px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1 shrink-0 px-1">
+                                        <Users className="w-2.5 h-2.5" />
+                                        {lead.cantidad_integrantes}
                                     </div>
                                 )}
                             </div>
-
-                            <h4 className="text-2xl font-black tracking-tighter mt-1 truncate max-w-full" title={`${lead.first_name} ${lead.last_name !== '.' ? lead.last_name : ''}`}>
-                                {lead.first_name} {lead.last_name !== '.' ? lead.last_name : ''}
-                            </h4>
-                            <p className="text-[11px] font-medium opacity-90 truncate">
-                                {lead.edades ? `Edades: ${lead.edades}` : 'Sin edades registradas'}
-                            </p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                                <span className="font-medium truncate">{lead.edades ? `Edades: ${lead.edades}` : 'Sin edades'}</span>
+                                <span>•</span>
+                                <span className="shrink-0 flex items-center gap-0.5">
+                                    <Clock className="w-2.5 h-2.5" />
+                                    {formatDistanceToNow(new Date(lead.created_at), { addSuffix: true, locale: es }).replace('hace ', '')}
+                                </span>
+                            </div>
                         </div>
 
-                        <div className="flex items-center gap-2 relative z-10 transition-opacity duration-300">
+                        {/* Controles top-right */}
+                        <div className="flex items-center gap-1 shrink-0">
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     setIsEditOpen(true)
                                 }}
-                                className="shrink-0 w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md flex items-center justify-center transition-all border border-white/20 shadow-sm opacity-0 group-hover:opacity-100"
-                                title="Editar Lead rápidamente"
+                                className="w-6 h-6 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-all text-slate-400 hover:text-blue-500 opacity-0 group-hover:opacity-100"
+                                title="Editar"
                             >
-                                <Edit className="w-4 h-4 text-white" />
+                                <Edit className="w-3.5 h-3.5" />
                             </button>
+                            {isAdmin && (
+                                <button
+                                    onClick={handleDelete}
+                                    className="w-6 h-6 rounded-md hover:bg-rose-100 dark:hover:bg-rose-500/20 flex items-center justify-center transition-all text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100"
+                                    title="Eliminar"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                            )}
                             {onSelect && (
-                                <div className={`shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-white border-white' : 'border-white/40'}`}>
-                                    {isSelected && <CheckCircle2 className="w-4 h-4 text-blue-600" />}
+                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${isSelected ? 'bg-blue-50 border-blue-500/30' : 'border-slate-200 dark:border-white/10'}`}>
+                                    {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />}
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 mt-4 relative z-10">
-                        <div className="px-2 py-1 rounded-lg bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-1.5">
-                            <Users className="w-3 h-3" />
-                            <span className="text-[10px] font-bold">{lead.cantidad_integrantes || 1} integrantes</span>
+                    {/* Fila 2: Badges (Interés, Origen, Asesor) */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 flex items-center gap-1 max-w-[120px] truncate">
+                            <div className={`w-1.5 h-1.5 rounded-full bg-gradient-to-br ${getStageStyle(lead.stage_name)}`} />
+                            <span className="truncate">{lead.plan || 'Sin especificar'}</span>
+                            {interestLevel > 0 && <span className={`${FLAME_COLORS[interestLevel]} text-[10px]`}>🔥</span>}
                         </div>
-                        {(lead.address_city || lead.address_state) && (
-                            <div className="px-2 py-1 rounded-lg bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-1.5">
-                                <MapPin className="w-3 h-3" />
-                                <span className="text-[10px] font-bold truncate max-w-[80px]">{lead.address_city || lead.address_state}</span>
-                            </div>
-                        )}
-                        <div className="px-2 py-1 rounded-lg bg-white/10 backdrop-blur-md border border-white/10 flex items-center gap-1.5">
-                            <Clock className="w-3 h-3" />
-                            <span className="text-[10px] font-bold">Ingresó: {formatDistanceToNow(new Date(lead.created_at), { addSuffix: true, locale: es })}</span>
+
+                        <div className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-white/5 truncate max-w-[90px]">
+                            {lead.source || 'Ads'}
+                        </div>
+
+                        <div className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border truncate max-w-[90px] ${lead.assigned_to_name === 'No asignado' ? 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20' : 'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-white/5'}`}>
+                            {lead.assigned_to_name || 'Sin asignar'}
                         </div>
                     </div>
-                </div>
 
-                {/* === CUERPO DE LA TARJETA === */}
-                <div className="p-5 space-y-5 bg-white dark:bg-slate-900/50">
-
-                    {/* Score & Interest */}
-                    <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Interés declarado</span>
-                            <div className="flex items-center gap-2">
-                                <p className="text-lg font-black tracking-tight text-slate-800 dark:text-white leading-none">
-                                    {lead.plan || 'Plan Familiar'}
-                                </p>
-                                {interestLevel > 0 && (
-                                    <span className={`${FLAME_COLORS[interestLevel]} text-sm animate-bounce`}>🔥</span>
-                                )}
+                    {/* Fila 3: Siguiente acción y Controles compactos */}
+                    <div className="flex items-center justify-between gap-2 mt-1 pt-2 border-t border-slate-100 dark:border-white/5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <div className="w-5 h-5 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
+                                <MessageCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                             </div>
-                            <p className="text-[10px] text-slate-500">{lead.observaciones_cotizacion ? 'Cotización enviada' : 'Sin cotización aún'}</p>
-                        </div>
-
-                        {/* Circular Score */}
-                        <div className="relative w-14 h-14">
-                            <svg className="w-full h-full transform -rotate-90">
-                                <circle
-                                    cx="28"
-                                    cy="28"
-                                    r="24"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                    fill="transparent"
-                                    className="text-slate-100 dark:text-white/5"
-                                />
-                                <circle
-                                    cx="28"
-                                    cy="28"
-                                    r="24"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                    fill="transparent"
-                                    strokeDasharray={2 * Math.PI * 24}
-                                    strokeDashoffset={2 * Math.PI * 24 * (1 - completion / 100)}
-                                    className={`${completionStyle.split(' ')[0]} transition-all duration-1000`}
-                                />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <span className={`text-xs font-black ${completionStyle.split(' ')[0]}`}>{completion}</span>
-                                <span className="text-[6px] font-black uppercase opacity-40">Score</span>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate">{nextAction.title}</p>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Grid Info */}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-slate-100 dark:border-white/5 pt-5">
-                        <div className="space-y-0.5">
-                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Origen</span>
-                            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate">{lead.source || 'Instagram Ads'}</p>
-                        </div>
-                        <div className="space-y-0.5">
-                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Asesor</span>
-                            <p className={`text-[11px] font-bold truncate ${lead.assigned_to_name === 'No asignado' ? 'text-rose-500' : 'text-slate-700 dark:text-slate-300'}`}>
-                                {lead.assigned_to_name || 'Sin asignar'}
-                            </p>
-                        </div>
-                        <div className="space-y-0.5">
-                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Teléfono</span>
-                            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{lead.phone}</p>
-                        </div>
-                        <div className="space-y-0.5">
-                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">En Pipeline</span>
-                            <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">2 horas</p>
-                        </div>
-                    </div>
+                        {/* Botones y Score compacto */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Mini Score */}
+                            <div className="relative w-6 h-6 mr-1" title={`Score: ${completion}`}>
+                                <svg className="w-full h-full transform -rotate-90">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" fill="transparent" className="text-slate-100 dark:text-white/5" />
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" fill="transparent" strokeDasharray={2 * Math.PI * 10} strokeDashoffset={2 * Math.PI * 10 * (1 - completion / 100)} className={`${completionStyle.split(' ')[0]} transition-all duration-1000`} />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className={`text-[8px] font-black ${completionStyle.split(' ')[0]}`}>{completion}</span>
+                                </div>
+                            </div>
 
-                    {/* Next Action Box */}
-                    <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-3 group/action">
-                        <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 transition-colors group-hover/action:bg-blue-600 group-hover/action:text-white">
-                            <MessageCircle className="w-5 h-5" />
+                            <button onClick={handleWhatsApp} className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all shadow-sm active:scale-95" title="Abrir WhatsApp">
+                                <Phone className="w-3.5 h-3.5" />
+                            </button>
+                            <Link href={`/leads/${lead.id}`} target="_blank" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all" onClick={(e) => e.stopPropagation()} title="Vista Completa">
+                                <ExternalLink className="w-3.5 h-3.5" />
+                            </Link>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <span className="text-[9px] font-black uppercase text-blue-500 tracking-widest">Próxima Acción</span>
-                            <p className="text-xs font-black text-slate-800 dark:text-white truncate">{nextAction.title}</p>
-                            <p className="text-[10px] text-slate-500 truncate">{nextAction.subtitle}</p>
-                        </div>
-                    </div>
-
-                    {/* Actions Footer */}
-                    <div className="flex items-center gap-2 pt-2">
-                        <button
-                            onClick={handleWhatsApp}
-                            className="flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-lg shadow-blue-500/20 active:scale-95"
-                        >
-                            Asignar asesor
-                        </button>
-
-                        <Link
-                            href={`/leads/${lead.id}`}
-                            target="_blank"
-                            className="p-3 rounded-xl border border-slate-200 dark:border-white/10 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-white/5 transition-all"
-                            onClick={(e) => e.stopPropagation()}
-                            title="Abrir Vista Detallada"
-                        >
-                            <ExternalLink className="w-5 h-5" />
-                        </Link>
                     </div>
 
                     {/* === CONTENIDO EXPANDIDO === */}
                     {isExpanded && (
-                        <div className="mt-3 pt-3 border-t border-white/10 space-y-4 animate-in slide-in-from-top-2 duration-300">
-                            <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-white/5 animate-in slide-in-from-top-2 duration-300">
+                            <div className="grid grid-cols-2 gap-x-2 gap-y-3 p-1 text-[10px]">
+                                <div className="space-y-0.5">
+                                    <span className="text-slate-400 uppercase font-black tracking-widest text-[8px]">Teléfono</span>
+                                    <p className="font-semibold text-slate-700 dark:text-slate-200">{lead.phone}</p>
+                                </div>
+                                <div className="space-y-0.5">
+                                    <span className="text-slate-400 uppercase font-black tracking-widest text-[8px]">En Pipeline</span>
+                                    <p className="font-semibold text-slate-700 dark:text-slate-200">2 horas</p>
+                                </div>
                                 {lead.obra_social && (
-                                    <div className="space-y-1">
-                                        <span className="text-slate-500 uppercase font-bold tracking-tighter text-[10px]">Obra Social</span>
-                                        <p className="font-semibold text-slate-700 dark:text-slate-200">{lead.obra_social}</p>
+                                    <div className="space-y-0.5">
+                                        <span className="text-slate-400 uppercase font-black tracking-widest text-[8px]">Obra Social</span>
+                                        <p className="font-semibold text-slate-700 dark:text-slate-200 truncate">{lead.obra_social}</p>
                                     </div>
                                 )}
-                                <div className="space-y-1">
-                                    <span className="text-slate-500 uppercase font-bold tracking-tighter text-[10px]">Fecha Ingreso</span>
+                                <div className="space-y-0.5">
+                                    <span className="text-slate-400 uppercase font-black tracking-widest text-[8px]">Fecha Ingreso</span>
                                     <p className="font-semibold text-slate-700 dark:text-slate-200">{new Date(lead.created_at).toLocaleDateString('es-AR')}</p>
                                 </div>
                             </div>
 
-                            {/* Botón Comentarios */}
                             <button
                                 onClick={(e) => { e.stopPropagation(); setIsCommentsOpen(true) }}
-                                className="w-full py-2.5 rounded-xl bg-blue-600/10 dark:bg-blue-600/20 hover:bg-blue-600/30 text-blue-700 dark:text-blue-400 border border-blue-500/20 text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.98] shadow-sm"
+                                className="w-full mt-2 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
                             >
-                                <MessageSquare className="w-3.5 h-3.5" /> Ver Comentarios e Historial
+                                <MessageSquare className="w-3 h-3" /> Ver Historial
                             </button>
                         </div>
                     )}

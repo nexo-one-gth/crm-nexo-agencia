@@ -5,13 +5,15 @@ import { LeadCard } from './LeadCard'
 import {
     MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus,
     Plus, FileUp, UserCheck, X, Filter, ChevronDown, ChevronRight,
-    User, Search, RefreshCw, SortAsc, ArrowUpDown, AlertTriangle, DollarSign
+    User, Search, RefreshCw, SortAsc, ArrowUpDown, AlertTriangle, DollarSign, Trash2
 } from 'lucide-react'
 import { ImportLeadsDialog } from './ImportLeadsDialog'
 import { CreateLeadDialog } from './CreateLeadDialog'
 import { MassAssignDialog } from './MassAssignDialog'
 import { MessageTemplateDialog } from './MessageTemplateDialog'
 import { useRouter } from 'next/navigation'
+import { deleteLeads } from '@/app/actions/lead-actions'
+import { toast } from 'sonner'
 
 interface Lead {
     id: string
@@ -166,6 +168,24 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
             setIsRefreshing(false)
             setLastRefresh(new Date())
         }, 800)
+    }
+
+    const handleDeleteLeads = async () => {
+        if (selectedLeads.length === 0) return
+
+        if (!confirm(`¿Estás seguro de que deseas eliminar ${selectedLeads.length} lead${selectedLeads.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) {
+            return
+        }
+
+        const result = await deleteLeads(selectedLeads)
+        if (result.success) {
+            toast.success(`${selectedLeads.length} lead${selectedLeads.length !== 1 ? 's' : ''} eliminado${selectedLeads.length !== 1 ? 's' : ''} correctamente`)
+            setSelectedLeads([])
+            setIsSelectionMode(false)
+            handleRefresh()
+        } else {
+            toast.error('Error al eliminar leads: ' + result.error)
+        }
     }
 
     const toggleGroup = (groupId: string) => {
@@ -427,6 +447,15 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
                         >
                             <UserCheck className="w-3.5 h-3.5" />
                             Asignar {selectedLeads.length} seleccionado{selectedLeads.length !== 1 ? 's' : ''}
+                        </button>
+                    )}
+                    {isSelectionMode && selectedLeads.length > 0 && (
+                        <button
+                            onClick={handleDeleteLeads}
+                            className="px-4 py-1.5 rounded-full bg-gradient-to-r from-rose-600 to-red-600 text-white text-[11px] font-bold flex items-center gap-1.5 hover:scale-105 transition-all shadow-lg animate-in zoom-in duration-200"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Eliminar {selectedLeads.length} seleccionado{selectedLeads.length !== 1 ? 's' : ''}
                         </button>
                     )}
                 </div>
