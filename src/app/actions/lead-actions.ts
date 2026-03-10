@@ -156,7 +156,7 @@ export async function getAllLeads() {
         .select(`
             *,
             pipeline_stages!inner(id, name),
-            assigned_to_profile:profiles(first_name, last_name)
+            assigned_to_profile:profiles!left(first_name, last_name)
         `)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
