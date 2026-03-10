@@ -42,7 +42,7 @@ export async function updateLeadStage(leadId: string, stageName: string, discard
 
     if (!stage) return { success: false, error: 'Etapa no encontrada' }
 
-    const updateData: Record<string, unknown> = { stage_id: stage.id }
+    const updateData: Record<string, unknown> = { pipeline_stage_id: stage.id }
     if (discardReason) {
         updateData.discard_reason = discardReason
     }
@@ -107,7 +107,7 @@ export async function createLead(values: { first_name: string; last_name: string
             cuil: values.cuil,
             obra_social: values.os,
             notes: values.notes,
-            stage_id: stage.id,
+            pipeline_stage_id: stage.id,
             assigned_to: user.id, // Auto-assign to the advisor
             source: values.source || 'App Asesores'
         })
@@ -236,7 +236,7 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
         .from('leads')
         .update({
             assigned_to: advisorId,
-            stage_id: stage.id,
+            pipeline_stage_id: stage.id,
             campaign_id: campaign?.id || null
         })
         .in('id', leadIds)

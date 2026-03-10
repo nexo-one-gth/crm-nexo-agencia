@@ -91,16 +91,79 @@ export async function importLeadsAction(formData: FormData) {
         const errors: { row: number, error: string }[] = []
         let importedCount = 0
 
+        const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+
+        const SYNONYMS: Record<string, string[]> = {
+            CELULAR: ['TELEFONO', 'TEL', 'CEL', 'MOBILE', 'WHATSAPP', 'CELLULAR', 'CONTATO'],
+            MAIL: ['EMAIL', 'CORREO', 'CONTACTO', 'E-MAIL', 'MAIL'],
+            PROVINCIA: ['ESTADO', 'STATE', 'REGION', 'PROV'],
+            LOCALIDAD: ['CIUDAD', 'CITY', 'PUEBLO', 'LOCAL', 'LOC'],
+            NOMBRE: ['NAME', 'NOMBRE COMPLETO', 'APELLIDO Y NOMBRE', 'NOMBRE Y APELLIDO'],
+            DNI: ['DOCUMENTO', 'ID', 'DOC'],
+            OBRA_SOCIAL: ['PREPAGA', 'COBERTURA', 'OS', 'OBRA SOCIAL'],
+            OBSERVACIONES: ['NOTAS', 'NOTES', 'COMENTARIOS', 'OBS']
+        };
+
         const normalizedData = rawData.map(row => {
             const normalized: Record<string, unknown> = {};
-            Object.keys(row as object).forEach(key => {
-                normalized[key.trim().toUpperCase()] = (row as Record<string, unknown>)[key];
+            const rowObj = row as Record<string, unknown>;
+
+            // Map row keys to our expected normalized keys using synonyms
+            Object.keys(SYNONYMS).forEach(targetKey => {
+                const synonyms = SYNONYMS[targetKey];
+                const sourceKey = Object.keys(rowObj).find(k => {
+                    const normK = normalize(k);
+                    return normK === targetKey || synonyms.includes(normK);
+                });
+
+                if (sourceKey) {
+                    normalized[targetKey] = rowObj[sourceKey];
+                }
             });
+
+            // Keep other keys that don't have synonyms but might match exactly (case-insensitive)
+            Object.keys(rowObj).forEach(key => {
+                const upperKey = normalize(key).replace(/\s+/g, '_');
+                if (!normalized[upperKey]) {
+                    normalized[upperKey] = rowObj[key];
+                }
+            });
+
             return normalized;
         });
 
         for (let i = 0; i < normalizedData.length; i++) {
             const row = normalizedData[i];
+
+            // Intelligent Field Detection: Agresivamente detectamos si los datos están cruzados
+            let email = String(row.MAIL || '').trim();
+            let phone = String(row.CELULAR || '').trim();
+            let province = String(row.PROVINCIA || '').trim();
+            let city = String(row.LOCALIDAD || '').trim();
+
+            const isPhoneFormat = (s: string) => s.replace(/^'/, '').trim().match(/^['+]?[\d\s-]{7,}$/);
+            const isEmailFormat = (s: string) => s.includes('@');
+
+            // 1. Swap PROVINCIA <-> CELULAR if formats are crossed
+            if (isPhoneFormat(province) && !isPhoneFormat(phone)) {
+                const temp = phone;
+                phone = province;
+                province = temp;
+            }
+
+            // 2. Swap LOCALIDAD <-> MAIL if formats are crossed
+            if (isEmailFormat(city) && !isEmailFormat(email)) {
+                const temp = email;
+                email = city;
+                city = temp;
+            }
+
+            // Update row with corrected values for Zod validation
+            row.CELULAR = phone.replace(/^'/, '').trim();
+            row.MAIL = email.replace(/^'/, '').trim();
+            row.PROVINCIA = province.replace(/^'/, '').trim();
+            row.LOCALIDAD = city.replace(/^'/, '').trim();
+
             let validated: LeadImportData
 
             try {
@@ -120,20 +183,17 @@ export async function importLeadsAction(formData: FormData) {
             const firstName = nameParts[0]
             const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.'
 
-            // Clean phone: remove leading apostrophe from crm-lh export format
-            const cleanPhone = validated.CELULAR.replace(/^'/, '')
-
             const leadData: Record<string, unknown> = {
                 first_name: firstName,
                 last_name: lastName,
-                phone: cleanPhone,
+                phone: validated.CELULAR,
                 email: validated.MAIL || null,
                 dni: validated.DNI && validated.DNI.trim() !== '' ? validated.DNI.trim() : null,
                 address_state: validated.PROVINCIA || null,
                 address_city: validated.LOCALIDAD || null,
                 pipeline_stage_id: stage.id,
                 assigned_to: null,
-                notes: validated.OBSERVACIONES || `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''} - Origen original: ${validated.ORIGEN_DATO || 'Importación Excel'}`.trim(),
+                notes: (validated.OBSERVACIONES || `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''} - Origen original: ${validated.ORIGEN_DATO || 'Importación Excel'}`).trim(),
                 // Nuevos campos de migración
                 numero_tramite: validated.NUMERO_TRAMITE || null,
                 cantidad_integrantes: validated.CANTIDAD_INTEGRANTES || null,

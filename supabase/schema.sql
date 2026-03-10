@@ -83,7 +83,9 @@ CREATE TABLE IF NOT EXISTS public.leads (
   last_status_update_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
   is_contacted BOOLEAN DEFAULT false,
   is_lost BOOLEAN DEFAULT false,
-  lost_reason_id UUID REFERENCES public.lost_reasons(id)
+  lost_reason_id UUID REFERENCES public.lost_reasons(id),
+  discard_reason TEXT,
+  source TEXT
 );
 
 -- 7. Activities History Table
