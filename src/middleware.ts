@@ -31,22 +31,23 @@ export async function middleware(request: NextRequest) {
         }
     )
 
-    // Using getUser() for verification, with basic error handling
-    try {
-        const { data: { user }, error } = await supabase.auth.getUser()
+    // Simplified route protection
+    const { pathname } = request.nextUrl
+    const isAuthPage = pathname.startsWith('/login')
+    const isLandingPage = pathname === '/'
+    const isPublicFile = pathname.includes('.') || pathname.startsWith('/_next')
 
-        // Protect routes - exclude static assets, login and the landing page
-        const isAuthPage = request.nextUrl.pathname.startsWith('/login')
-        const isLandingPage = request.nextUrl.pathname === '/'
+    if (isPublicFile) return response
+
+    try {
+        const { data: { user } } = await supabase.auth.getUser()
 
         if (!user && !isAuthPage && !isLandingPage) {
             const url = request.nextUrl.clone()
             url.pathname = '/login'
-            // Keep original search params if any
             return NextResponse.redirect(url)
         }
 
-        // If user is logged in and trying to access /login, redirect to /
         if (user && isAuthPage) {
             const url = request.nextUrl.clone()
             url.pathname = '/'
@@ -54,8 +55,8 @@ export async function middleware(request: NextRequest) {
         }
     } catch (err) {
         console.error('Middleware auth error:', err)
-        // In case of error, we can still allow the request but logs the error
-        // Or redirect to an error page if necessary
+        // If Supabase fails (e.g. invalid URL), we allow the request to continue
+        // to avoid a 504 timeout on Vercel. The page component will handle the empty session.
     }
 
     return response
