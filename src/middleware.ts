@@ -40,7 +40,15 @@ export async function middleware(request: NextRequest) {
     if (isPublicFile) return response
 
     try {
-        const { data: { user } } = await supabase.auth.getUser()
+        // Use a timeout to prevent middleware from hanging if Supabase is slow
+        const getUserWithTimeout = Promise.race([
+            supabase.auth.getUser(),
+            new Promise<any>((_, reject) =>
+                setTimeout(() => reject(new Error('Auth timeout')), 3000)
+            )
+        ])
+
+        const { data: { user } } = await getUserWithTimeout
 
         if (!user && !isAuthPage && !isLandingPage) {
             const url = request.nextUrl.clone()
@@ -54,8 +62,8 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(url)
         }
     } catch (err) {
-        console.error('Middleware auth error:', err)
-        // If Supabase fails (e.g. invalid URL), we allow the request to continue
+        console.error('Middleware auth error or timeout:', err)
+        // If Supabase fails or times out, we allow the request to continue
         // to avoid a 504 timeout on Vercel. The page component will handle the empty session.
     }
 

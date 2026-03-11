@@ -65,16 +65,15 @@ export default async function DashboardPage() {
     .limit(5)
 
   // Fetch campaigns to get lead balance
-  const { data: { user: authUser } } = await supabase.auth.getUser()
   let remainingLeads = 0
   let totalCampaignLeads = 0
   let deliveredLeads = 0
 
-  if (authUser) {
+  if (user) {
     const { data: campaigns } = await supabase
       .from('campaigns')
       .select('*')
-      .eq('advisor_id', authUser.id)
+      .eq('advisor_id', user.id)
       .eq('active', true)
       .order('created_at', { ascending: false })
       .limit(1)
