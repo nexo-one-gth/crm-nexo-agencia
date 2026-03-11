@@ -31,11 +31,31 @@ export async function middleware(request: NextRequest) {
         }
     )
 
-    const { data: { user } } = await supabase.auth.getUser()
+    // Using getUser() for verification, with basic error handling
+    try {
+        const { data: { user }, error } = await supabase.auth.getUser()
 
-    // Protect routes
-    if (!user && !request.nextUrl.pathname.startsWith('/login') && request.nextUrl.pathname !== '/') {
-        return NextResponse.redirect(new URL('/login', request.url))
+        // Protect routes - exclude static assets, login and the landing page
+        const isAuthPage = request.nextUrl.pathname.startsWith('/login')
+        const isLandingPage = request.nextUrl.pathname === '/'
+
+        if (!user && !isAuthPage && !isLandingPage) {
+            const url = request.nextUrl.clone()
+            url.pathname = '/login'
+            // Keep original search params if any
+            return NextResponse.redirect(url)
+        }
+
+        // If user is logged in and trying to access /login, redirect to /
+        if (user && isAuthPage) {
+            const url = request.nextUrl.clone()
+            url.pathname = '/'
+            return NextResponse.redirect(url)
+        }
+    } catch (err) {
+        console.error('Middleware auth error:', err)
+        // In case of error, we can still allow the request but logs the error
+        // Or redirect to an error page if necessary
     }
 
     return response
