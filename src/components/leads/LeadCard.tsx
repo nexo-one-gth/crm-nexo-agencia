@@ -265,8 +265,51 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                         </div>
                     </div>
 
-                    {/* Fila 3: Siguiente acción y Controles compactos */}
-                    <div className="flex items-center justify-between gap-2 mt-1 pt-2 border-t border-slate-100 dark:border-white/5">
+                    {/* Fila 3: Avance de etapa */}
+                    {(() => {
+                        const currentIdx = PIPELINE_STAGES.findIndex(s => s.key === lead.stage_name)
+                        const nextStage = currentIdx >= 0 && currentIdx < PIPELINE_STAGES.length - 1 ? PIPELINE_STAGES[currentIdx + 1] : null
+                        return (
+                            <div className="flex items-center gap-1.5 mt-1 pt-2 border-t border-slate-100 dark:border-white/5" ref={discardRef}>
+                                {nextStage && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleStageUpdate(nextStage.key) }}
+                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm ${nextStage.color}`}
+                                        title={`Avanzar a ${nextStage.label}`}
+                                    >
+                                        <ChevronDown className="w-3 h-3 -rotate-90" />
+                                        {nextStage.label}
+                                    </button>
+                                )}
+                                <div className="relative">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setIsDiscardOpen(prev => !prev) }}
+                                        className="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-500 text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1"
+                                        title="No interesado"
+                                    >
+                                        ✕
+                                    </button>
+                                    {isDiscardOpen && (
+                                        <div className="absolute bottom-full right-0 mb-1 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-3 pt-2 pb-1">Motivo de descarte</p>
+                                            {DISCARD_REASONS.map(reason => (
+                                                <button
+                                                    key={reason}
+                                                    onClick={(e) => { e.stopPropagation(); handleDiscard(reason) }}
+                                                    className="w-full text-left px-3 py-2 text-[11px] text-slate-700 dark:text-slate-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                                                >
+                                                    {reason}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )
+                    })()}
+
+                    {/* Fila 4: Siguiente acción y Controles compactos */}
+                    <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             <div className="w-5 h-5 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
                                 <MessageCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
