@@ -9,8 +9,8 @@ import { addLeadComment, getLeadActivities } from '@/app/actions/lead-actions'
 
 interface Activity {
     id: string
-    type: string
-    content: string
+    type: string | null
+    description: string | null
     created_at: string
 }
 
@@ -147,7 +147,7 @@ export const LeadCommentsModal = ({ isOpen, onClose, leadId, leadName }: LeadCom
                                                     </div>
                                                 </div>
                                                 <p className="text-sm text-slate-200 leading-relaxed">
-                                                    {activity.content}
+                                                    {activity.description}
                                                 </p>
                                             </div>
                                         </div>

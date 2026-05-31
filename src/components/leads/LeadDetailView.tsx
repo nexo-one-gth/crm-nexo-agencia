@@ -14,8 +14,8 @@ import { LeadEditModal } from '@/components/leads/LeadEditModal'
 
 interface Activity {
     id: string
-    type: string
-    content: string
+    type: string | null
+    description: string | null
     created_at: string
 }
 
@@ -318,7 +318,7 @@ export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
 
                                                 <div className="flex-1 pb-8">
                                                     <div className="flex justify-between items-center mb-1">
-                                                        <span className="text-sm font-bold">{activity.content}</span>
+                                                        <span className="text-sm font-bold">{activity.description}</span>
                                                         <span className="text-[10px] text-slate-400 font-bold uppercase">
                                                             {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true, locale: es })}
                                                         </span>

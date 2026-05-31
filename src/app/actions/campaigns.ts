@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/supabase/assert-admin'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
@@ -15,24 +16,9 @@ const campaignSchema = z.object({
 export async function createCampaign(values: z.infer<typeof campaignSchema>) {
     const supabase = await createClient()
 
-    // Check admin role
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return { success: false, error: 'No autenticado' }
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if (profile?.role !== 'admin') {
-        return {
-            success: false,
-            error: 'Acceso no autorizado. Se requiere perfil administrador.',
-        }
-    }
+    const guard = await assertAdmin()
+    if (guard.error || !guard.user) return { success: false, error: guard.error ?? 'No autenticado' }
+    const { user } = guard
 
     const validated = campaignSchema.safeParse(values)
     if (!validated.success) {
@@ -65,9 +51,7 @@ export async function createCampaign(values: z.infer<typeof campaignSchema>) {
 
 export async function getCampaigns() {
     const supabase = await createClient()
-    const {
-        data: { user },
-    } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
     if (!user) return []
 
     const { data: profile } = await supabase
@@ -76,17 +60,20 @@ export async function getCampaigns() {
         .eq('id', user.id)
         .single()
 
+    const isAdmin = profile?.role === 'admin'
+
+    // Una sola query: campañas + asesor + count de leads por campaña via subquery RPC
+    // Usamos execute_sql-style via from() con el count embebido en el select
     let query = supabase
         .from('campaigns')
-        .select(
-            `
+        .select(`
             *,
-            advisor:profiles(id, first_name, last_name, email)
-        `
-        )
+            advisor:profiles(id, first_name, last_name, email),
+            delivered_leads:leads(count)
+        `)
         .order('created_at', { ascending: false })
 
-    if (profile?.role !== 'admin') {
+    if (!isAdmin) {
         query = query.eq('advisor_id', user.id)
     }
 
@@ -97,25 +84,14 @@ export async function getCampaigns() {
         return []
     }
 
-    // Fetch counts of delivered leads for each campaign
-    const campaignsWithStats = await Promise.all(
-        data.map(async (campaign: { id: string; total_leads: number;[key: string]: unknown }) => {
-            const { count, error: countError } = await supabase
-                .from('leads')
-                .select('*', { count: 'exact', head: true })
-                .eq('campaign_id', campaign.id)
-
-            if (countError) console.error('Error counting leads for campaign:', campaign.id, countError)
-
-            return {
-                ...campaign,
-                delivered_leads: count || 0,
-                remaining_leads: Math.max(0, campaign.total_leads - (count || 0)),
-            }
-        })
-    )
-
-    return campaignsWithStats
+    return data.map((campaign: { total_leads: number; delivered_leads: { count: number }[]; [key: string]: unknown }) => {
+        const delivered = campaign.delivered_leads?.[0]?.count ?? 0
+        return {
+            ...campaign,
+            delivered_leads: delivered,
+            remaining_leads: Math.max(0, campaign.total_leads - delivered),
+        }
+    })
 }
 
 export async function getAdvisors() {

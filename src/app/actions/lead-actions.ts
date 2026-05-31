@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/supabase/assert-admin'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 
@@ -32,6 +33,8 @@ export async function getAdvisorLeads() {
 
 export async function updateLeadStage(leadId: string, stageName: string, discardReason?: string) {
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'No autenticado' }
 
     // Get stage ID by name
     const { data: stage } = await supabase
@@ -47,10 +50,12 @@ export async function updateLeadStage(leadId: string, stageName: string, discard
         updateData.discard_reason = discardReason
     }
 
-    const { error } = await supabase
-        .from('leads')
-        .update(updateData)
-        .eq('id', leadId)
+    // Admins pueden mover cualquier lead; asesores solo los propios
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    const query = supabase.from('leads').update(updateData).eq('id', leadId)
+    if (profile?.role !== 'admin') query.eq('assigned_to', user.id)
+
+    const { error } = await query
 
     if (error) {
         console.error('Error updating stage:', error)
@@ -72,9 +77,9 @@ export async function logWhatsAppActivity(leadId: string) {
         .from('activities')
         .insert({
             lead_id: leadId,
-            user_id: user.id,
+            created_by: user.id,
             type: 'whatsapp_sent',
-            content: 'Mensaje de WhatsApp enviado al prospecto'
+            description: 'Mensaje de WhatsApp enviado al prospecto'
         })
 
     if (logError) console.error('Error logging WhatsApp activity:', logError)
@@ -173,10 +178,10 @@ export async function getAllLeads() {
         return []
     }
 
-    return data.map((lead: { pipeline_stages: { name: string }, assigned_to_profile: { first_name: string, last_name: string }, [key: string]: unknown }) => ({
+    return data.map((lead: { pipeline_stages: { name: string }, assigned_to_profile: { first_name: string | null, last_name: string | null } | null, [key: string]: unknown }) => ({
         ...lead,
         stage_name: lead.pipeline_stages.name,
-        assigned_to_name: lead.assigned_to_profile ? `${lead.assigned_to_profile.first_name} ${lead.assigned_to_profile.last_name}` : 'No asignado'
+        assigned_to_name: lead.assigned_to_profile ? `${lead.assigned_to_profile.first_name ?? ''} ${lead.assigned_to_profile.last_name ?? ''}`.trim() : 'No asignado'
     }))
 }
 
@@ -212,6 +217,9 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'No autenticado' }
+
+    const guard = await assertAdmin()
+    if (guard.error) return { success: false, error: guard.error }
 
     // Get "Pendiente" stage ID
     const { data: stage } = await supabase
@@ -251,6 +259,9 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
 }
 
 export async function addLeadComment(leadId: string, content: string) {
+    if (!content?.trim()) return { success: false, error: 'El comentario no puede estar vacío' }
+    if (content.length > 2000) return { success: false, error: 'El comentario no puede superar los 2000 caracteres' }
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'No autenticado' }
@@ -259,9 +270,9 @@ export async function addLeadComment(leadId: string, content: string) {
         .from('activities')
         .insert({
             lead_id: leadId,
-            user_id: user.id,
+            created_by: user.id,
             type: 'comment',
-            content
+            description: content.trim()
         })
 
     if (error) {
@@ -330,7 +341,14 @@ export async function updateLead(data: Record<string, unknown>) {
     }
     const { id, ...updateFields } = parseResult.data;
     const supabase = await createClient();
-    const { error } = await supabase.from('leads').update(updateFields).eq('id', id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'No autenticado' };
+
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    const query = supabase.from('leads').update(updateFields).eq('id', id);
+    if (profile?.role !== 'admin') query.eq('assigned_to', user.id);
+
+    const { error } = await query;
     if (error) {
         console.error('Error updating lead:', error);
         return { success: false, error: error.message };
@@ -346,16 +364,8 @@ export async function deleteLeads(leadIds: string[]) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'No autenticado' }
 
-    // Check if user is admin
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if (profile?.role !== 'admin') {
-        return { success: false, error: 'No tienes permisos para eliminar leads' }
-    }
+    const guard = await assertAdmin()
+    if (guard.error) return { success: false, error: guard.error }
 
     const { error } = await supabase
         .from('leads')

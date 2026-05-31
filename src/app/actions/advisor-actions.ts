@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/supabase/assert-admin'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
@@ -20,7 +21,11 @@ export type ActionResponse<T = unknown> = {
 }
 
 export const createAdvisor = async (formData: z.infer<typeof advisorSchema>): Promise<ActionResponse> => {
-    // 1. Validar datos con Zod
+    // 1. Verificar que el caller sea admin
+    const guard = await assertAdmin()
+    if (guard.error) return { success: false, error: guard.error }
+
+    // 2. Validar datos con Zod
     const validated = advisorSchema.safeParse(formData)
     if (!validated.success) {
         return {
@@ -57,7 +62,6 @@ export const createAdvisor = async (formData: z.infer<typeof advisorSchema>): Pr
         // definido en la base de datos se encarga de hacerlo automáticamente usando la 'user_metadata'.
 
         revalidatePath('/admin/advisors')
-        return { success: true }
         return { success: true }
 
     } catch (err: unknown) {

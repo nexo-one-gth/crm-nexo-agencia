@@ -59,7 +59,7 @@ export default async function DashboardPage() {
         last_name
       )
     `)
-    .eq('user_id', user.id)
+    .eq('created_by', user.id)
     .eq('type', 'whatsapp_sent')
     .order('created_at', { ascending: false })
     .limit(5)
@@ -167,9 +167,10 @@ export default async function DashboardPage() {
           </h3>
           <div className="space-y-3 sm:space-y-4">
             {recentActivities && recentActivities.length > 0 ? (
-              recentActivities.map((activity: { id: string, created_at: string, leads: { first_name: string, last_name: string } | { first_name: string, last_name: string }[], [key: string]: unknown }) => {
-                const leadFirst = Array.isArray(activity.leads) ? activity.leads[0]?.first_name : activity.leads?.first_name
-                const leadLast = Array.isArray(activity.leads) ? activity.leads[0]?.last_name : activity.leads?.last_name
+              recentActivities.map((activity) => {
+                const leads = activity.leads
+                const leadFirst = Array.isArray(leads) ? leads[0]?.first_name : leads?.first_name
+                const leadLast = Array.isArray(leads) ? leads[0]?.last_name : leads?.last_name
                 return (
                   <div key={activity.id} className="flex items-center gap-3 sm:gap-4 p-3 rounded-xl bg-white/5 border border-white/10">
                     <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-green-500/20 flex items-center justify-center text-green-600 shrink-0">

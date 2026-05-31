@@ -18,7 +18,7 @@ export const CampaignModal = ({
     onSuccess,
 }: CampaignModalProps) => {
     const [loading, setLoading] = useState(false)
-    const [advisors, setAdvisors] = useState<{ id: string, first_name: string, last_name: string, email: string, [key: string]: unknown }[]>([])
+    const [advisors, setAdvisors] = useState<{ id: string, first_name: string | null, last_name: string | null, email: string | null }[]>([])
     const [formData, setFormData] = useState({
         name: '',
         description: '',

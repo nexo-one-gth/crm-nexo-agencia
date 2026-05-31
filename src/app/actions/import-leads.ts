@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { assertAdmin } from '@/lib/supabase/assert-admin'
+import type { TablesInsert } from '@/lib/supabase/types'
 import * as XLSX from 'xlsx'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
@@ -69,6 +71,9 @@ export async function importLeadsAction(formData: FormData) {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return { success: false, error: 'No autenticado' }
 
+        const guard = await assertAdmin()
+        if (guard.error) return { success: false, error: guard.error }
+
         const file = formData.get('file') as File
         if (!file) return { success: false, error: 'No se subió ningún archivo' }
 
@@ -89,6 +94,7 @@ export async function importLeadsAction(formData: FormData) {
         if (!stage) return { success: false, error: 'Etapa de asignación no encontrada. Por favor contacte soporte.' }
 
         const errors: { row: number, error: string }[] = []
+        const validRows: { rowIndex: number, data: TablesInsert<'leads'> }[] = []
         let importedCount = 0
 
         const normalize = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
@@ -183,53 +189,69 @@ export async function importLeadsAction(formData: FormData) {
             const firstName = nameParts[0]
             const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '.'
 
-            const leadData: Record<string, unknown> = {
-                first_name: firstName,
-                last_name: lastName,
-                phone: validated.CELULAR,
-                email: validated.MAIL || null,
-                dni: validated.DNI && validated.DNI.trim() !== '' ? validated.DNI.trim() : null,
-                address_state: validated.PROVINCIA || null,
-                address_city: validated.LOCALIDAD || null,
-                pipeline_stage_id: stage.id,
-                assigned_to: null,
-                notes: (validated.OBSERVACIONES || `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''} - Origen original: ${validated.ORIGEN_DATO || 'Importación Excel'}`).trim(),
-                // Nuevos campos de migración
-                numero_tramite: validated.NUMERO_TRAMITE || null,
-                cantidad_integrantes: validated.CANTIDAD_INTEGRANTES || null,
-                edades: validated.EDADES || null,
-                cuil: validated.CUIL || null,
-                cuit_empleador: validated.CUIT_EMPLEADOR || null,
-                obra_social: validated.OBRA_SOCIAL || null,
-                plan: validated.PLAN || null,
-                valor_plan: validated.VALOR_PLAN || null,
-                descuento_aportes: validated.DESCUENTO_APORTES || null,
-                descuento_comercial: validated.DESCUENTO_COMERCIAL || null,
-                iva: validated.IVA || null,
-                valor_final_socio: validated.VALOR_FINAL_SOCIO || null,
-                valor_forecast: validated.VALOR_FORECAST || null,
-                observaciones_cotizacion: validated.OBSERVACIONES_COTIZACION || null,
-                interest_level: validated.NIVEL_INTERES || 0,
+            validRows.push({
+                rowIndex: i + 2,
+                data: {
+                    first_name: firstName as string,
+                    last_name: lastName,
+                    phone: validated.CELULAR,
+                    email: validated.MAIL || null,
+                    dni: validated.DNI && validated.DNI.trim() !== '' ? validated.DNI.trim() : null,
+                    address_state: validated.PROVINCIA || null,
+                    address_city: validated.LOCALIDAD || null,
+                    pipeline_stage_id: stage.id,
+                    assigned_to: null,
+                    notes: (validated.OBSERVACIONES || `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''} - Origen original: ${validated.ORIGEN_DATO || 'Importación Excel'}`).trim(),
+                    numero_tramite: validated.NUMERO_TRAMITE || null,
+                    cantidad_integrantes: validated.CANTIDAD_INTEGRANTES || null,
+                    edades: validated.EDADES || null,
+                    cuil: validated.CUIL || null,
+                    cuit_empleador: validated.CUIT_EMPLEADOR || null,
+                    obra_social: validated.OBRA_SOCIAL || null,
+                    plan: validated.PLAN || null,
+                    valor_plan: validated.VALOR_PLAN || null,
+                    descuento_aportes: validated.DESCUENTO_APORTES || null,
+                    descuento_comercial: validated.DESCUENTO_COMERCIAL || null,
+                    iva: validated.IVA || null,
+                    valor_final_socio: validated.VALOR_FINAL_SOCIO || null,
+                    valor_forecast: validated.VALOR_FORECAST || null,
+                    observaciones_cotizacion: validated.OBSERVACIONES_COTIZACION || null,
+                    interest_level: validated.NIVEL_INTERES || 0,
+                }
+            })
+        }
+
+        // Batch insert en lotes de 100 para manejar duplicados por lote
+        const BATCH_SIZE = 100
+        for (let b = 0; b < validRows.length; b += BATCH_SIZE) {
+            const batch = validRows.slice(b, b + BATCH_SIZE)
+            const { error: batchError } = await supabase
+                .from('leads')
+                .insert(batch.map(r => r.data))
+
+            if (!batchError) {
+                importedCount += batch.length
+                continue
             }
 
-            // Insertar fila por fila para manejar errores individuales (ej. DNI duplicado)
-            const { error: insertError } = await supabase.from('leads').insert(leadData)
-
-            if (insertError) {
-                console.error(`Error insertando fila ${i + 2}:`, insertError)
-                let errorMsg = 'Error al insertar en la base de datos'
-                if (insertError.code === '23505') {
-                    if (insertError.message.includes('dni')) {
-                        errorMsg = `DNI duplicado: ${validated.DNI}`
-                    } else if (insertError.message.includes('phone')) {
-                        errorMsg = `Teléfono duplicado: ${validated.CELULAR}`
-                    } else {
-                        errorMsg = 'Registro duplicado (ya existe en la base de datos)'
+            // Si el lote falla (ej. duplicado), cae a inserción individual para identificar la fila exacta
+            for (const row of batch) {
+                const { error: insertError } = await supabase.from('leads').insert(row.data)
+                if (insertError) {
+                    let errorMsg = 'Error al insertar en la base de datos'
+                    if (insertError.code === '23505') {
+                        if (insertError.message.includes('dni')) {
+                            errorMsg = `DNI duplicado: ${row.data.dni}`
+                        } else if (insertError.message.includes('phone')) {
+                            errorMsg = `Teléfono duplicado: ${row.data.phone}`
+                        } else {
+                            errorMsg = 'Registro duplicado (ya existe en la base de datos)'
+                        }
                     }
+                    errors.push({ row: row.rowIndex, error: errorMsg })
+                } else {
+                    importedCount++
                 }
-                errors.push({ row: i + 2, error: errorMsg })
-            } else {
-                importedCount++
             }
         }
 
