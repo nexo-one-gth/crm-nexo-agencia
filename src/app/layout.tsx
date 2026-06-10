@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { createClient } from "@/lib/supabase/server";
 import { Settings as SettingsIcon } from "lucide-react";
@@ -8,7 +8,12 @@ import { Toaster } from "sonner";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { BottomNav } from "@/components/ui/BottomNav";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-heading",
+  weight: ["600", "700", "800"],
+});
 
 // Helper: initial from name
 const getInitial = (name: string | null) => name ? name.charAt(0).toUpperCase() : 'U';
@@ -53,7 +58,7 @@ export default async function RootLayout({
 
   return (
     <html lang="es">
-      <body className={inter.className}>
+      <body className={`${inter.variable} ${plusJakarta.variable} font-body`}>
         <div className="min-h-screen flex flex-col">
           {/* Navigation */}
           <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/5 border-b border-white/10 px-4 sm:px-6 py-3">

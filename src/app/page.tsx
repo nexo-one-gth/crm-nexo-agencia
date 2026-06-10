@@ -103,7 +103,7 @@ export default async function DashboardPage() {
       {/* Header — stacks vertically on mobile */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Mi Resumen</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white font-heading">Mi Resumen</h1>
           <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">Gestiona tus prospectos y ventas</p>
         </div>
         <Link
@@ -138,22 +138,33 @@ export default async function DashboardPage() {
             Estado del Embudo
           </h3>
           <div className="space-y-3 sm:space-y-4">
-            {['Pendiente', 'Contactado', 'Interesado', 'No Interesado'].map((stage, idx) => {
-              const count = stageCounts[stage] || 0
+            {[
+              { name: 'Pendiente', gradient: 'from-blue-600 to-blue-400' },
+              { name: 'Contactado', gradient: 'from-green-600 to-green-400' },
+              { name: 'Interesado', gradient: 'from-purple-600 to-purple-400' },
+              { name: 'No Interesado', gradient: 'from-slate-600 to-slate-400' },
+            ].map(({ name, gradient }) => {
+              const count = stageCounts[name] || 0
               const percentage = (totalLeads || 0) > 0 ? (count / (totalLeads || 1)) * 100 : 0
               return (
-                <div key={stage} className="space-y-1.5 sm:space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-semibold text-xs sm:text-sm">{stage}</span>
-                    <span className="text-slate-500 text-xs sm:text-sm">{count}</span>
+                <Link
+                  key={name}
+                  href={`/funnel?stage=${encodeURIComponent(name)}`}
+                  className="block space-y-1.5 sm:space-y-2 group rounded-xl p-2 -m-2 hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-semibold text-xs sm:text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      {name}
+                    </span>
+                    <span className="text-slate-500 text-xs sm:text-sm tabular-nums">{count}</span>
                   </div>
                   <div className="h-2 sm:h-2.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
-                      className={`h-full bg-gradient-to-r ${idx === 0 ? 'from-blue-600 to-blue-400' : idx === 1 ? 'from-green-600 to-green-400' : idx === 2 ? 'from-purple-600 to-purple-400' : 'from-slate-600 to-slate-400'}`}
+                      className={`h-full bg-gradient-to-r ${gradient} transition-all duration-500`}
                       style={{ width: `${Math.max(percentage, 2)}%` }}
                     />
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>

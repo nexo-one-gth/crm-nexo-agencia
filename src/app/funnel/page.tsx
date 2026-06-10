@@ -4,9 +4,14 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 
-export default async function FunnelPage() {
+export default async function FunnelPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ stage?: string }>
+}) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    const params = await searchParams
 
     let isAdmin = false
     let userProfile = null
@@ -21,7 +26,7 @@ export default async function FunnelPage() {
         isAdmin = profile?.role === 'admin'
         userProfile = profile ? {
             full_name: `${profile.first_name} ${profile.last_name}`,
-            whatsapp_name: profile.first_name // or whatever fallback makes sense
+            whatsapp_name: profile.first_name
         } : null
     }
 
@@ -37,7 +42,7 @@ export default async function FunnelPage() {
                     <ChevronLeft className="w-5 h-5" />
                 </Link>
                 <div>
-                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                    <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-heading">
                         {isAdmin ? 'Panel de Control' : 'Mi Embudo'}
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500">
@@ -49,7 +54,12 @@ export default async function FunnelPage() {
             </div>
 
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            <LeadFunnelBoard initialLeads={leads as any} isAdmin={isAdmin} userProfile={userProfile} />
+            <LeadFunnelBoard
+                initialLeads={leads as any}
+                isAdmin={isAdmin}
+                userProfile={userProfile}
+                initialStage={params.stage}
+            />
         </div>
     )
 }

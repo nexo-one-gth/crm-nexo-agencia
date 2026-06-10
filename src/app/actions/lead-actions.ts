@@ -52,8 +52,8 @@ export async function updateLeadStage(leadId: string, stageName: string, discard
 
     // Admins pueden mover cualquier lead; asesores solo los propios
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    const query = supabase.from('leads').update(updateData).eq('id', leadId)
-    if (profile?.role !== 'admin') query.eq('assigned_to', user.id)
+    let query = supabase.from('leads').update(updateData).eq('id', leadId)
+    if (profile?.role !== 'admin') query = query.eq('assigned_to', user.id)
 
     const { error } = await query
 
@@ -345,8 +345,8 @@ export async function updateLead(data: Record<string, unknown>) {
     if (!user) return { success: false, error: 'No autenticado' };
 
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    const query = supabase.from('leads').update(updateFields).eq('id', id);
-    if (profile?.role !== 'admin') query.eq('assigned_to', user.id);
+    let query = supabase.from('leads').update(updateFields).eq('id', id);
+    if (profile?.role !== 'admin') query = query.eq('assigned_to', user.id);
 
     const { error } = await query;
     if (error) {

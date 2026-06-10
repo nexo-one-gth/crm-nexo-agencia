@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { LeadCard } from './LeadCard'
 import {
     MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus,
@@ -11,9 +11,11 @@ import { ImportLeadsDialog } from './ImportLeadsDialog'
 import { CreateLeadDialog } from './CreateLeadDialog'
 import { MassAssignDialog } from './MassAssignDialog'
 import { MessageTemplateDialog } from './MessageTemplateDialog'
+import { AlertDialog } from '@/components/ui/AlertDialog'
 import { useRouter } from 'next/navigation'
 import { deleteLeads } from '@/app/actions/lead-actions'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 
 interface Lead {
     id: string
@@ -52,6 +54,7 @@ interface Lead {
 interface LeadFunnelBoardProps {
     initialLeads: Lead[]
     isAdmin?: boolean
+    initialStage?: string
     userProfile?: {
         full_name: string | null
         whatsapp_name: string | null
@@ -86,7 +89,7 @@ const sortLeads = (leads: Lead[], mode: SortMode): Lead[] => {
     })
 }
 
-export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunnelBoardProps) => {
+export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfile }: LeadFunnelBoardProps) => {
     const leads = initialLeads
     const [isImportOpen, setIsImportOpen] = useState(false)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -95,16 +98,34 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
     const [selectedLeads, setSelectedLeads] = useState<string[]>([])
     const [isSelectionMode, setIsSelectionMode] = useState(false)
     const [discardFilter, setDiscardFilter] = useState<string>('all')
-    const [activeTab, setActiveTab] = useState(0)
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
     const [searchQuery, setSearchQuery] = useState('')
     const [sortMode, setSortMode] = useState<SortMode>('recent')
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
     const [showSortMenu, setShowSortMenu] = useState(false)
+    const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
     const router = useRouter()
 
     const effectiveStages = isAdmin ? STAGES : STAGES.filter(s => !s.adminOnly)
+
+    const initialTabIndex = initialStage
+        ? effectiveStages.findIndex(s => s.name === initialStage)
+        : 0
+    const [activeTab, setActiveTab] = useState(initialTabIndex >= 0 ? initialTabIndex : 0)
+
+    // P6 — Supabase Realtime: actualización automática cuando cambian leads
+    useEffect(() => {
+        const supabase = createClient()
+        const channel = supabase
+            .channel('leads-realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
+                router.refresh()
+                setLastRefresh(new Date())
+            })
+            .subscribe()
+        return () => { supabase.removeChannel(channel) }
+    }, [router])
 
     // --- Computed / Memoized ---
 
@@ -170,13 +191,12 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
         }, 800)
     }
 
-    const handleDeleteLeads = async () => {
+    const handleDeleteLeads = () => {
         if (selectedLeads.length === 0) return
+        setIsDeleteAlertOpen(true)
+    }
 
-        if (!confirm(`¿Estás seguro de que deseas eliminar ${selectedLeads.length} lead${selectedLeads.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) {
-            return
-        }
-
+    const handleDeleteLeadsConfirm = async () => {
         const result = await deleteLeads(selectedLeads)
         if (result.success) {
             toast.success(`${selectedLeads.length} lead${selectedLeads.length !== 1 ? 's' : ''} eliminado${selectedLeads.length !== 1 ? 's' : ''} correctamente`)
@@ -463,27 +483,39 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
 
             {/* ===== TABS MÓVIL (< md) ===== */}
             <div className="md:hidden">
-                <div className="flex overflow-x-auto hide-scrollbar gap-1 pb-1">
-                    {effectiveStages.map((stage, idx) => {
-                        const count = getStageLeads(stage.name).length
-                        const isActive = activeTab === idx
-                        return (
-                            <button
-                                key={stage.name}
-                                onClick={() => setActiveTab(idx)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 border-b-2 ${isActive
-                                    ? `${stage.bgColor} ${stage.tabColor} ${stage.color}`
-                                    : 'bg-white/5 border-transparent text-slate-500 dark:text-slate-400'
-                                    }`}
-                            >
-                                <stage.icon className="w-3.5 h-3.5" />
-                                <span className="max-w-[80px] truncate">{stage.name}</span>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-black/10 dark:bg-white/10' : 'bg-black/5 dark:bg-white/5'}`}>
-                                    {count}
-                                </span>
-                            </button>
-                        )
-                    })}
+                {/* Wrapper relativo para el fade visual — no toca el scroll */}
+                <div className="relative w-full">
+                    <div
+                        className="flex overflow-x-auto hide-scrollbar gap-1 pb-1"
+                        style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+                    >
+                        {effectiveStages.map((stage, idx) => {
+                            const count = getStageLeads(stage.name).length
+                            const isActive = activeTab === idx
+                            return (
+                                <button
+                                    key={stage.name}
+                                    onClick={() => setActiveTab(idx)}
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 border-b-2 ${isActive
+                                        ? `${stage.bgColor} ${stage.tabColor} ${stage.color}`
+                                        : 'bg-white/5 border-transparent text-slate-500 dark:text-slate-400'
+                                        }`}
+                                >
+                                    <stage.icon className="w-3.5 h-3.5" />
+                                    <span className="max-w-[80px] truncate">{stage.name}</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-black/10 dark:bg-white/10' : 'bg-black/5 dark:bg-white/5'}`}>
+                                        {count}
+                                    </span>
+                                </button>
+                            )
+                        })}
+                        <div className="shrink-0 w-10" />
+                    </div>
+                    {/* Fade derecho usando la variable CSS de fondo — compatible con dark/light */}
+                    <div
+                        className="pointer-events-none absolute right-0 top-0 bottom-1"
+                        style={{ width: 48, background: 'linear-gradient(to left, var(--background) 30%, transparent 100%)' }}
+                    />
                 </div>
 
                 <div className="mt-3">
@@ -626,6 +658,16 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, userProfile }: LeadFunn
                 isOpen={isCreateOpen}
                 onClose={() => setIsCreateOpen(false)}
                 onSuccess={handleRefresh}
+            />
+
+            <AlertDialog
+                isOpen={isDeleteAlertOpen}
+                onClose={() => setIsDeleteAlertOpen(false)}
+                onConfirm={handleDeleteLeadsConfirm}
+                title={`Eliminar ${selectedLeads.length} lead${selectedLeads.length !== 1 ? 's' : ''}`}
+                description={`¿Seguro que querés eliminar ${selectedLeads.length} lead${selectedLeads.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`}
+                confirmLabel="Sí, eliminar"
+                cancelLabel="Cancelar"
             />
         </div>
     )

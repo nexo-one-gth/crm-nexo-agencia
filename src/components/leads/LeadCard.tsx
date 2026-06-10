@@ -1,12 +1,12 @@
 'use client'
 
-import { Phone, User, MessageCircle, Calendar, ChevronDown, MessageSquare, DollarSign, Flame, FileText, MapPin, Mail, CreditCard, Edit, CheckCircle2, Clock, Users, ExternalLink, Trash2 } from 'lucide-react'
+import { Phone, MessageCircle, ChevronDown, MessageSquare, Edit, CheckCircle2, Clock, Users, ExternalLink, Trash2 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { logWhatsAppActivity, updateLeadStage, deleteLeads } from '@/app/actions/lead-actions'
+import { updateLeadStage, deleteLeads } from '@/app/actions/lead-actions'
 import { calculateLeadCompletion, getCompletionColor } from '@/lib/utils/lead-completion'
 
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { WhatsAppModal } from '@/components/leads/WhatsAppModal'
 import { LeadCommentsModal } from '@/components/leads/LeadCommentsModal'
 import { LeadEditModal } from '@/components/leads/LeadEditModal'
+import { AlertDialog } from '@/components/ui/AlertDialog'
 
 interface LeadCardProps {
     lead: {
@@ -90,6 +91,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
     const [isCommentsOpen, setIsCommentsOpen] = useState(false)
     const [isDiscardOpen, setIsDiscardOpen] = useState(false)
     const [isEditOpen, setIsEditOpen] = useState(false)
+    const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
     const discardRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
 
@@ -131,12 +133,12 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
         handleStageUpdate('No Interesado', reason)
     }
 
-    const handleDelete = async (e: React.MouseEvent) => {
+    const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation()
-        if (!confirm(`¿Estás seguro de que deseas eliminar a ${lead.first_name}? Esta acción no se puede deshacer.`)) {
-            return
-        }
+        setIsDeleteAlertOpen(true)
+    }
 
+    const handleDeleteConfirm = async () => {
         const result = await deleteLeads([lead.id])
         if (result.success) {
             toast.success('Lead eliminado correctamente')
@@ -171,23 +173,19 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
         }
     }
 
-    const getNextAction = (stage: string) => {
-        switch (stage) {
-            case 'Pendiente': return { title: 'Primer contacto telefónico', subtitle: 'Hoy antes de las 14hs · Llamada' }
-            case 'Contactado': return { title: 'Preparar y enviar cotización', subtitle: 'Hoy · Email + WhatsApp' }
-            case 'Interesado': return { title: 'Seguimiento por WhatsApp', subtitle: 'Revisar si pudo ver la cotización' }
-            case 'Cotizado': return { title: 'Solicitar documentación', subtitle: 'Pendiente: DNI titular y cónyuge' }
-            default: return { title: 'Seguimiento de rutina', subtitle: 'Mantener contacto con el prospecto' }
-        }
+    const getUrgencySignal = (created_at: string) => {
+        const days = Math.floor((Date.now() - new Date(created_at).getTime()) / (1000 * 60 * 60 * 24))
+        if (days === 0) return { text: 'Ingresó hoy', color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' }
+        if (days === 1) return { text: 'Sin contacto: 1 día', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20' }
+        if (days <= 3) return { text: `Sin contacto: ${days} días`, color: 'text-amber-600 bg-amber-500/10 border-amber-500/20' }
+        return { text: `Sin contacto: ${days} días`, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20' }
     }
-
-    const nextAction = getNextAction(lead.stage_name)
 
     return (
         <>
             <div
-                onClick={() => onSelect ? onSelect(lead.id) : setIsExpanded(!isExpanded)}
-                className={`glass-card overflow-hidden rounded-2xl cursor-pointer hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group shadow-sm flex bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-white/5 ${isSelected ? 'ring-2 ring-blue-500/50' : ''}`}
+                onClick={() => onSelect && onSelect(lead.id)}
+                className={`glass-card overflow-hidden rounded-2xl hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group shadow-sm flex bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-white/5 ${onSelect ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-blue-500/50' : ''}`}
             >
                 {/* === BANDA DE COLOR LATERAL === */}
                 <div className={`w-1.5 shrink-0 bg-gradient-to-b ${getStageStyle(lead.stage_name)} opacity-80`} />
@@ -226,7 +224,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                                     e.stopPropagation()
                                     setIsEditOpen(true)
                                 }}
-                                className="w-6 h-6 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-all text-slate-400 hover:text-blue-500 opacity-0 group-hover:opacity-100"
+                                className="w-6 h-6 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-all text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400"
                                 title="Editar"
                             >
                                 <Edit className="w-3.5 h-3.5" />
@@ -234,7 +232,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                             {isAdmin && (
                                 <button
                                     onClick={handleDelete}
-                                    className="w-6 h-6 rounded-md hover:bg-rose-100 dark:hover:bg-rose-500/20 flex items-center justify-center transition-all text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100"
+                                    className="w-6 h-6 rounded-md hover:bg-rose-100 dark:hover:bg-rose-500/20 flex items-center justify-center transition-all text-slate-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400"
                                     title="Eliminar"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -308,38 +306,52 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                         )
                     })()}
 
-                    {/* Fila 4: Siguiente acción y Controles compactos */}
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                            <div className="w-5 h-5 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
-                                <MessageCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate">{nextAction.title}</p>
-                            </div>
-                        </div>
-
-                        {/* Botones y Score compacto */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            {/* Mini Score */}
-                            <div className="relative w-6 h-6 mr-1" title={`Score: ${completion}`}>
-                                <svg className="w-full h-full transform -rotate-90">
-                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" fill="transparent" className="text-slate-100 dark:text-white/5" />
-                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" fill="transparent" strokeDasharray={2 * Math.PI * 10} strokeDashoffset={2 * Math.PI * 10 * (1 - completion / 100)} className={`${completionStyle.split(' ')[0]} transition-all duration-1000`} />
-                                </svg>
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <span className={`text-[8px] font-black ${completionStyle.split(' ')[0]}`}>{completion}</span>
+                    {/* Fila 4: Urgencia + Controles */}
+                    {(() => {
+                        const urgency = getUrgencySignal(lead.created_at)
+                        return (
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded) }}
+                                        className="w-5 h-5 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-all text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"
+                                        title={isExpanded ? 'Colapsar' : 'Ver más'}
+                                    >
+                                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${urgency.color}`}>
+                                        {urgency.text}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                    {/* Mini Score */}
+                                    <div className="relative w-6 h-6 mr-1" title={`Completado: ${completion}%`}>
+                                        <svg className="w-full h-full transform -rotate-90">
+                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" fill="transparent" className="text-slate-100 dark:text-white/5" />
+                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" fill="transparent" strokeDasharray={2 * Math.PI * 10} strokeDashoffset={2 * Math.PI * 10 * (1 - completion / 100)} className={`${completionStyle.split(' ')[0]} transition-all duration-1000`} />
+                                        </svg>
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <span className={`text-[8px] font-black ${completionStyle.split(' ')[0]}`}>{completion}</span>
+                                        </div>
+                                    </div>
+                                    <a
+                                        href={`tel:${lead.phone}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all active:scale-95"
+                                        title={`Llamar a ${lead.phone}`}
+                                    >
+                                        <Phone className="w-3.5 h-3.5" />
+                                    </a>
+                                    <button onClick={(e) => { e.stopPropagation(); handleWhatsApp(e) }} className="w-7 h-7 rounded-lg bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-all shadow-sm active:scale-95" title="Enviar WhatsApp">
+                                        <MessageCircle className="w-3.5 h-3.5" />
+                                    </button>
+                                    <Link href={`/leads/${lead.id}`} target="_blank" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all" onClick={(e) => e.stopPropagation()} title="Vista Completa">
+                                        <ExternalLink className="w-3.5 h-3.5" />
+                                    </Link>
                                 </div>
                             </div>
-
-                            <button onClick={handleWhatsApp} className="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-all shadow-sm active:scale-95" title="Abrir WhatsApp">
-                                <Phone className="w-3.5 h-3.5" />
-                            </button>
-                            <Link href={`/leads/${lead.id}`} target="_blank" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all" onClick={(e) => e.stopPropagation()} title="Vista Completa">
-                                <ExternalLink className="w-3.5 h-3.5" />
-                            </Link>
-                        </div>
-                    </div>
+                        )
+                    })()}
 
                     {/* === CONTENIDO EXPANDIDO === */}
                     {isExpanded && (
@@ -351,7 +363,9 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                                 </div>
                                 <div className="space-y-0.5">
                                     <span className="text-slate-400 uppercase font-black tracking-widest text-[8px]">En Pipeline</span>
-                                    <p className="font-semibold text-slate-700 dark:text-slate-200">2 horas</p>
+                                    <p className="font-semibold text-slate-700 dark:text-slate-200">
+                                        {formatDistanceToNow(new Date(lead.created_at), { addSuffix: false, locale: es })}
+                                    </p>
                                 </div>
                                 {lead.obra_social && (
                                     <div className="space-y-0.5">
@@ -400,6 +414,16 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                     leadName={`${lead.first_name} ${lead.last_name}`}
                 />
             )}
+
+            <AlertDialog
+                isOpen={isDeleteAlertOpen}
+                onClose={() => setIsDeleteAlertOpen(false)}
+                onConfirm={handleDeleteConfirm}
+                title="Eliminar lead"
+                description={`¿Seguro que querés eliminar a ${lead.first_name}? Esta acción no se puede deshacer.`}
+                confirmLabel="Sí, eliminar"
+                cancelLabel="Cancelar"
+            />
         </>
     )
 }
