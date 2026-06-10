@@ -571,13 +571,16 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                 </div>
             </div>
 
-            {/* ===== COLUMNAS DESKTOP (>= md) ===== */}
-            <div className="hidden md:flex gap-4 h-[calc(100vh-300px)] overflow-hidden">
+            {/* ===== COLUMNAS DESKTOP (>= md) — scroll horizontal cuando 8 columnas superan el viewport ===== */}
+            <div
+                className="hidden md:flex gap-4 h-[calc(100vh-300px)] overflow-x-auto overflow-y-hidden custom-scrollbar pb-2"
+                style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x proximity' } as React.CSSProperties}
+            >
                 {effectiveStages.map((stage) => {
                     const stageLeads = getStageLeads(stage.name)
 
                     return (
-                        <div key={stage.name} className="flex-1 flex flex-col min-w-[240px]">
+                        <div key={stage.name} className="w-[300px] shrink-0 flex flex-col h-full" style={{ scrollSnapAlign: 'start' }}>
                             {/* Column header */}
                             <div className={`p-3 rounded-xl mb-3 flex items-center justify-between ${stage.bgColor} border border-white/10 shrink-0`}>
                                 <div className="flex items-center gap-2">
