@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
   public: {
     Tables: {
       activities: {
@@ -40,6 +45,157 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alta_items: {
+        Row: {
+          alta_id: string
+          archivo_path: string | null
+          completado: boolean
+          completado_at: string | null
+          completado_by: string | null
+          etiqueta: string
+          id: string
+          plantilla_item_id: string | null
+          requerido: boolean
+          tipo_dato: string
+          valor_fecha: string | null
+          valor_numero: number | null
+          valor_texto: string | null
+        }
+        Insert: {
+          alta_id: string
+          archivo_path?: string | null
+          completado?: boolean
+          completado_at?: string | null
+          completado_by?: string | null
+          etiqueta: string
+          id?: string
+          plantilla_item_id?: string | null
+          requerido?: boolean
+          tipo_dato: string
+          valor_fecha?: string | null
+          valor_numero?: number | null
+          valor_texto?: string | null
+        }
+        Update: {
+          alta_id?: string
+          archivo_path?: string | null
+          completado?: boolean
+          completado_at?: string | null
+          completado_by?: string | null
+          etiqueta?: string
+          id?: string
+          plantilla_item_id?: string | null
+          requerido?: boolean
+          tipo_dato?: string
+          valor_fecha?: string | null
+          valor_numero?: number | null
+          valor_texto?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alta_items_alta_id_fkey"
+            columns: ["alta_id"]
+            isOneToOne: false
+            referencedRelation: "altas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alta_items_completado_by_fkey"
+            columns: ["completado_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alta_items_plantilla_item_id_fkey"
+            columns: ["plantilla_item_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_plantilla_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      altas: {
+        Row: {
+          asesor_id: string
+          created_at: string
+          enviada_at: string | null
+          estado: string
+          id: string
+          lead_id: string
+          observaciones: string | null
+          plan_id: string | null
+          plantilla_id: string | null
+          prepaga_id: string
+          tipo_alta: string | null
+          updated_at: string
+        }
+        Insert: {
+          asesor_id: string
+          created_at?: string
+          enviada_at?: string | null
+          estado?: string
+          id?: string
+          lead_id: string
+          observaciones?: string | null
+          plan_id?: string | null
+          plantilla_id?: string | null
+          prepaga_id: string
+          tipo_alta?: string | null
+          updated_at?: string
+        }
+        Update: {
+          asesor_id?: string
+          created_at?: string
+          enviada_at?: string | null
+          estado?: string
+          id?: string
+          lead_id?: string
+          observaciones?: string | null
+          plan_id?: string | null
+          plantilla_id?: string | null
+          prepaga_id?: string
+          tipo_alta?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "altas_asesor_id_fkey"
+            columns: ["asesor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "altas_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "altas_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "prepaga_planes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "altas_plantilla_id_fkey"
+            columns: ["plantilla_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_plantillas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "altas_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
             referencedColumns: ["id"]
           },
         ]
@@ -129,6 +285,73 @@ export type Database = {
             columns: ["advisor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_plantilla_items: {
+        Row: {
+          etiqueta: string
+          id: string
+          orden: number
+          plantilla_id: string
+          requerido: boolean
+          tipo_dato: string
+        }
+        Insert: {
+          etiqueta: string
+          id?: string
+          orden?: number
+          plantilla_id: string
+          requerido?: boolean
+          tipo_dato?: string
+        }
+        Update: {
+          etiqueta?: string
+          id?: string
+          orden?: number
+          plantilla_id?: string
+          requerido?: boolean
+          tipo_dato?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_plantilla_items_plantilla_id_fkey"
+            columns: ["plantilla_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_plantillas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_plantillas: {
+        Row: {
+          activa: boolean
+          id: string
+          nombre: string
+          prepaga_id: string
+          tipo_alta: string | null
+        }
+        Insert: {
+          activa?: boolean
+          id?: string
+          nombre?: string
+          prepaga_id: string
+          tipo_alta?: string | null
+        }
+        Update: {
+          activa?: boolean
+          id?: string
+          nombre?: string
+          prepaga_id?: string
+          tipo_alta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_plantillas_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
             referencedColumns: ["id"]
           },
         ]
@@ -363,6 +586,7 @@ export type Database = {
           phone: string | null
           pipeline_stage_id: string | null
           plan: string | null
+          prepaga_id: string | null
           source: string | null
           valor_final_socio: number | null
           valor_forecast: number | null
@@ -403,6 +627,7 @@ export type Database = {
           phone?: string | null
           pipeline_stage_id?: string | null
           plan?: string | null
+          prepaga_id?: string | null
           source?: string | null
           valor_final_socio?: number | null
           valor_forecast?: number | null
@@ -443,6 +668,7 @@ export type Database = {
           phone?: string | null
           pipeline_stage_id?: string | null
           plan?: string | null
+          prepaga_id?: string | null
           source?: string | null
           valor_final_socio?: number | null
           valor_forecast?: number | null
@@ -477,6 +703,13 @@ export type Database = {
             referencedRelation: "pipeline_stages"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "leads_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
         ]
       }
       lost_reasons: {
@@ -509,6 +742,179 @@ export type Database = {
           id?: string
           name?: string
           order?: number
+        }
+        Relationships: []
+      }
+      prepaga_asesores: {
+        Row: {
+          activo: boolean
+          asesor_id: string
+          codigo_productor: string | null
+          comision_pct: number | null
+          credenciales: Json
+          id: string
+          prepaga_id: string
+        }
+        Insert: {
+          activo?: boolean
+          asesor_id: string
+          codigo_productor?: string | null
+          comision_pct?: number | null
+          credenciales?: Json
+          id?: string
+          prepaga_id: string
+        }
+        Update: {
+          activo?: boolean
+          asesor_id?: string
+          codigo_productor?: string | null
+          comision_pct?: number | null
+          credenciales?: Json
+          id?: string
+          prepaga_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prepaga_asesores_asesor_id_fkey"
+            columns: ["asesor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prepaga_asesores_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prepaga_eventos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fecha: string
+          id: string
+          mes_periodo: string
+          nota: string | null
+          prepaga_id: string
+          segmento: string | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fecha: string
+          id?: string
+          mes_periodo: string
+          nota?: string | null
+          prepaga_id: string
+          segmento?: string | null
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          id?: string
+          mes_periodo?: string
+          nota?: string | null
+          prepaga_id?: string
+          segmento?: string | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prepaga_eventos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prepaga_eventos_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prepaga_planes: {
+        Row: {
+          activo: boolean
+          descripcion: string | null
+          id: string
+          nombre: string
+          orden: number
+          prepaga_id: string
+        }
+        Insert: {
+          activo?: boolean
+          descripcion?: string | null
+          id?: string
+          nombre: string
+          orden?: number
+          prepaga_id: string
+        }
+        Update: {
+          activo?: boolean
+          descripcion?: string | null
+          id?: string
+          nombre?: string
+          orden?: number
+          prepaga_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prepaga_planes_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prepagas: {
+        Row: {
+          activa: boolean
+          cotizador_url: string | null
+          created_at: string
+          id: string
+          logo_url: string | null
+          nombre: string
+          notas_admin: string | null
+          orden: number
+          slug: string
+          tipo_cotizador: string
+          updated_at: string
+        }
+        Insert: {
+          activa?: boolean
+          cotizador_url?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          nombre: string
+          notas_admin?: string | null
+          orden?: number
+          slug: string
+          tipo_cotizador?: string
+          updated_at?: string
+        }
+        Update: {
+          activa?: boolean
+          cotizador_url?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          nombre?: string
+          notas_admin?: string | null
+          orden?: number
+          slug?: string
+          tipo_cotizador?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -583,7 +989,48 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      prepaga_asesores_safe: {
+        Row: {
+          activo: boolean | null
+          asesor_id: string | null
+          codigo_productor: string | null
+          comision_pct: number | null
+          id: string | null
+          prepaga_id: string | null
+        }
+        Insert: {
+          activo?: boolean | null
+          asesor_id?: string | null
+          codigo_productor?: string | null
+          comision_pct?: number | null
+          id?: string | null
+          prepaga_id?: string | null
+        }
+        Update: {
+          activo?: boolean | null
+          asesor_id?: string | null
+          codigo_productor?: string | null
+          comision_pct?: number | null
+          id?: string | null
+          prepaga_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prepaga_asesores_asesor_id_fkey"
+            columns: ["asesor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prepaga_asesores_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       auth_is_admin: { Args: never; Returns: boolean }
@@ -597,11 +1044,127 @@ export type Database = {
   }
 }
 
-export type Tables<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Row']
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-export type TablesInsert<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Insert']
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
-export type TablesUpdate<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Update']
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      user_role: ["admin", "supervisor", "sales_executive", "asesor"],
+    },
+  },
+} as const

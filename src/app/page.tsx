@@ -1,7 +1,7 @@
 // Deployment trigger
 import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
-import { Users, Target, MessageCircle, BarChart3, Clock } from 'lucide-react'
+import { Users, Target, MessageCircle, BarChart3, Clock, FileText, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 
 export default async function DashboardPage() {
@@ -91,6 +91,12 @@ export default async function DashboardPage() {
     }
   }
 
+  const { count: altasActivas } = await supabase
+    .from('altas')
+    .select('*', { count: 'exact', head: true })
+    .eq('asesor_id', user.id)
+    .in('estado', ['en_proceso', 'enviada', 'observada'])
+
   const stats = [
     { name: 'Mis Leads', value: totalLeads || 0, icon: Users, color: 'from-blue-600 to-blue-400' },
     { name: 'Leads Restantes', value: remainingLeads, icon: Target, color: 'from-rose-600 to-rose-400' },
@@ -129,6 +135,23 @@ export default async function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Altas en proceso — acceso rápido */}
+      <Link
+        href="/altas"
+        className="glass-card p-4 sm:p-5 rounded-2xl flex items-center justify-between group hover:bg-white/10 transition-colors"
+      >
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-400 shadow-lg shrink-0">
+            <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Altas en proceso</p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">{altasActivas ?? 0}</p>
+          </div>
+        </div>
+        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors shrink-0" />
+      </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Embudo Visual */}
