@@ -1,6 +1,6 @@
 'use client'
 
-import { Home, BarChart3, Settings, Plus } from 'lucide-react'
+import { Home, BarChart3, Settings, Plus, Building2 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -9,6 +9,7 @@ import { CreateLeadDialog } from '@/components/leads/CreateLeadDialog'
 const NAV_ITEMS = [
     { href: '/', label: 'Inicio', icon: Home },
     { href: '/funnel', label: 'Embudo', icon: BarChart3 },
+    { href: '/prepagas', label: 'Prepagas', icon: Building2 },
     { href: '/settings', label: 'Ajustes', icon: Settings },
 ]
 
@@ -39,7 +40,7 @@ export const BottomNav = () => {
                         {/* Embudo */}
                         <Link
                             href="/funnel"
-                            className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl transition-all duration-200 min-w-[56px] ${
+                            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[48px] ${
                                 pathname === '/funnel'
                                     ? 'text-blue-600 dark:text-blue-400'
                                     : 'text-slate-500 dark:text-slate-400 active:scale-95'
@@ -62,10 +63,24 @@ export const BottomNav = () => {
                             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 opacity-80">Nuevo</span>
                         </button>
 
+                        {/* Prepagas */}
+                        <Link
+                            href="/prepagas"
+                            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[48px] ${
+                                pathname.startsWith('/prepagas')
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-slate-500 dark:text-slate-400 active:scale-95'
+                            }`}
+                        >
+                            <Building2 className={`w-5 h-5 ${pathname.startsWith('/prepagas') ? 'drop-shadow-[0_0_6px_rgba(59,130,246,0.5)]' : ''}`} />
+                            <span className={`text-[10px] font-bold ${pathname.startsWith('/prepagas') ? '' : 'opacity-70'}`}>Prepagas</span>
+                            {pathname.startsWith('/prepagas') && <div className="w-1 h-1 rounded-full bg-blue-500 mt-0.5" />}
+                        </Link>
+
                         {/* Ajustes */}
                         <Link
                             href="/settings"
-                            className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl transition-all duration-200 min-w-[56px] ${
+                            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[48px] ${
                                 pathname === '/settings'
                                     ? 'text-blue-600 dark:text-blue-400'
                                     : 'text-slate-500 dark:text-slate-400 active:scale-95'
