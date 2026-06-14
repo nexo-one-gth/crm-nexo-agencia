@@ -14,7 +14,10 @@ const leadUpdateSchema = z.object({
     first_name: z.string().min(1).optional(),
     last_name: z.string().min(1).optional(),
     phone: z.string().optional(),
-    email: z.string().email().optional().or(z.literal('')),
+    email: z.string().optional().or(z.literal('')).refine(
+        val => !val || val === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+        { message: 'Email inválido' }
+    ),
     dni: z.string().optional(),
     cuil: z.string().optional(),
     cuit_empleador: z.string().optional(),
@@ -70,12 +73,12 @@ const Field = ({
 }) => (
     <div className={colSpan === 2 ? 'col-span-2' : ''}>
         <div className="flex justify-between items-center mb-1.5 px-1">
-            <label className={`text-[10px] uppercase font-black tracking-widest ${isMissing ? 'text-rose-500' : 'text-slate-400'}`}>
+            <label className={`text-[10px] uppercase font-black tracking-widest ${isMissing ? 'text-amber-500' : 'text-slate-400'}`}>
                 {label}
             </label>
             {isMissing && (
-                <span className="text-[9px] font-black text-rose-500 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> Pendiente
+                <span className="text-[9px] font-black text-amber-500 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Sin completar
                 </span>
             )}
         </div>
@@ -91,7 +94,7 @@ const Field = ({
                     value={value ?? ''}
                     onChange={onChange}
                     rows={3}
-                    className={`w-full rounded-xl bg-[#F4F4F2] dark:bg-slate-800/50 border ${isMissing ? 'border-rose-200 bg-rose-50/50' : 'border-white/60'} text-slate-800 dark:text-white text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/50 placeholder-slate-400 resize-none shadow-sm transition-all ${icon ? 'pl-9' : ''}`}
+                    className={`w-full rounded-xl bg-[#F4F4F2] dark:bg-slate-800/50 border ${isMissing ? 'border-amber-200 bg-amber-50/30' : 'border-white/60'} text-slate-800 dark:text-white text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/50 placeholder-slate-400 resize-none shadow-sm transition-all ${icon ? 'pl-9' : ''}`}
                 />
             ) : (
                 <input
@@ -99,7 +102,7 @@ const Field = ({
                     name={name}
                     value={value ?? ''}
                     onChange={onChange}
-                    className={`w-full rounded-xl bg-[#F4F4F2] dark:bg-slate-800/50 border ${isMissing ? 'border-rose-200 bg-rose-50/50' : 'border-white/60'} text-slate-800 dark:text-white text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/50 placeholder-slate-400 shadow-sm transition-all ${icon ? 'pl-9' : ''}`}
+                    className={`w-full rounded-xl bg-[#F4F4F2] dark:bg-slate-800/50 border ${isMissing ? 'border-amber-200 bg-amber-50/30' : 'border-white/60'} text-slate-800 dark:text-white text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/50 placeholder-slate-400 shadow-sm transition-all ${icon ? 'pl-9' : ''}`}
                 />
             )}
         </div>
@@ -174,9 +177,19 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsSaving(true)
-        const parseResult = leadUpdateSchema.safeParse(formData)
+        // Convertir strings vacíos a undefined para que coerce.number() no los rechace
+        const sanitized = {
+            ...formData,
+            valor_plan: formData.valor_plan === ('' as unknown) ? undefined : formData.valor_plan,
+            descuento_aportes: formData.descuento_aportes === ('' as unknown) ? undefined : formData.descuento_aportes,
+            descuento_comercial: formData.descuento_comercial === ('' as unknown) ? undefined : formData.descuento_comercial,
+            valor_final_socio: formData.valor_final_socio === ('' as unknown) ? undefined : formData.valor_final_socio,
+            valor_forecast: formData.valor_forecast === ('' as unknown) ? undefined : formData.valor_forecast,
+        }
+        const parseResult = leadUpdateSchema.safeParse(sanitized)
         if (!parseResult.success) {
-            toast.error('Datos inválidos, revisá el formulario')
+            const campos = parseResult.error.issues.map(i => i.path.join('.')).join(', ')
+            toast.error('Campo inválido: ' + campos)
             setIsSaving(false)
             return
         }
