@@ -24,12 +24,16 @@ interface LeadDetailViewProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     lead: any
     activities: Activity[]
+    initialTab?: string
 }
 
-export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
+export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewProps) => {
     const STAGES_CON_COTIZADOR = ['Contactado', 'Interesado', 'Cotizado']
     const puedeCotar = STAGES_CON_COTIZADOR.includes(lead.stage_name)
-    const [activeTab, setActiveTab] = useState(lead.stage_name === 'Interesado' ? 'quote' : 'info')
+    const [activeTab, setActiveTab] = useState(
+        initialTab === 'quote' && puedeCotar ? 'quote' :
+        lead.stage_name === 'Interesado' ? 'quote' : 'info'
+    )
     const [isEditOpen, setIsEditOpen] = useState(false)
     const completion = calculateLeadCompletion(lead)
 

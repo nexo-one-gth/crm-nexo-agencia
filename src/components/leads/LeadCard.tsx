@@ -1,6 +1,6 @@
 'use client'
 
-import { Phone, MessageCircle, ChevronDown, MessageSquare, Edit, CheckCircle2, Clock, Users, ExternalLink, Trash2 } from 'lucide-react'
+import { Phone, MessageCircle, ChevronDown, MessageSquare, Edit, CheckCircle2, Clock, Users, ExternalLink, Trash2, Calculator } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -348,7 +348,17 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                                     <button onClick={(e) => { e.stopPropagation(); handleWhatsApp(e) }} className="w-7 h-7 rounded-lg bg-green-600 hover:bg-green-700 text-white flex items-center justify-center transition-all shadow-sm active:scale-95" title="Enviar WhatsApp">
                                         <MessageCircle className="w-3.5 h-3.5" />
                                     </button>
-                                    <Link href={`/leads/${lead.id}`} target="_blank" className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all" onClick={(e) => e.stopPropagation()} title="Vista Completa">
+                                    {['Contactado', 'Interesado', 'Cotizado'].includes(lead.stage_name) && (
+                                        <Link
+                                            href={`/leads/${lead.id}?tab=quote`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-7 h-7 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-all shadow-sm active:scale-95"
+                                            title="Cotizar"
+                                        >
+                                            <Calculator className="w-3.5 h-3.5" />
+                                        </Link>
+                                    )}
+                                    <Link href={`/leads/${lead.id}`} onClick={(e) => e.stopPropagation()} className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all" title="Vista Completa">
                                         <ExternalLink className="w-3.5 h-3.5" />
                                     </Link>
                                 </div>
