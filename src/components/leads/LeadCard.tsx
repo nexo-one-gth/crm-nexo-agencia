@@ -270,17 +270,30 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                     {(() => {
                         const currentIdx = PIPELINE_STAGES.findIndex(s => s.key === lead.stage_name)
                         const nextStage = currentIdx >= 0 && currentIdx < PIPELINE_STAGES.length - 1 ? PIPELINE_STAGES[currentIdx + 1] : null
+                        const isAltaNext = nextStage?.key === 'Alta en Proceso'
                         return (
                             <div className="flex items-center gap-1.5 mt-1 pt-2 border-t border-slate-100 dark:border-white/5" ref={discardRef}>
                                 {nextStage && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); handleStageUpdate(nextStage.key) }}
-                                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm ${nextStage.color}`}
-                                        title={`Avanzar a ${nextStage.label}`}
-                                    >
-                                        <ChevronDown className="w-3 h-3 -rotate-90" />
-                                        {nextStage.label}
-                                    </button>
+                                    isAltaNext ? (
+                                        <Link
+                                            href={`/leads/${lead.id}?tab=quote`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm ${nextStage.color}`}
+                                            title="Iniciar Alta desde cotización"
+                                        >
+                                            <ChevronDown className="w-3 h-3 -rotate-90" />
+                                            {nextStage.label}
+                                        </Link>
+                                    ) : (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleStageUpdate(nextStage.key) }}
+                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm ${nextStage.color}`}
+                                            title={`Avanzar a ${nextStage.label}`}
+                                        >
+                                            <ChevronDown className="w-3 h-3 -rotate-90" />
+                                            {nextStage.label}
+                                        </button>
+                                    )
                                 )}
                                 <div className="relative">
                                     <button
