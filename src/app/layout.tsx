@@ -62,7 +62,7 @@ export default async function RootLayout({
       <body className={`${inter.variable} ${plusJakarta.variable} font-body`}>
         <div className="min-h-screen flex flex-col">
           {/* Navigation */}
-          <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/5 border-b border-white/10 px-4 sm:px-6 py-3">
+          <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/5 border-b border-white/10 px-4 sm:px-6 py-0.5">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
               <Link href="/" className="flex items-center">
                 <Image
