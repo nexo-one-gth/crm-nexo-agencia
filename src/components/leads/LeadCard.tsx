@@ -18,6 +18,7 @@ import { AlertDialog } from '@/components/ui/AlertDialog'
 
 interface LeadCardProps {
     compact?: boolean
+    onStageChange?: (newStageName: string) => void
     lead: {
         id: string
         first_name: string
@@ -86,7 +87,7 @@ const formatCurrency = (value?: number) => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value)
 }
 
-export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, compact = false }: LeadCardProps) => {
+export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, compact = false, onStageChange }: LeadCardProps) => {
     const [isExpanded, setIsExpanded] = useState(false)
     const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false)
     const [isCommentsOpen, setIsCommentsOpen] = useState(false)
@@ -123,6 +124,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                 ? `Descartado: ${discardReason}`
                 : `Etapa actualizada a ${newStageName}`
             toast.success(msg)
+            onStageChange?.(newStageName)
             router.refresh()
         } else {
             toast.error('Error al actualizar la etapa: ' + result.error)

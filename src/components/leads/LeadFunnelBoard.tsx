@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { LeadCard } from './LeadCard'
 import {
     MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus,
@@ -107,6 +107,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
     const [showSortMenu, setShowSortMenu] = useState(false)
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
     const [isCompactView, setIsCompactView] = useState(false)
+    const desktopBoardRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
 
     const effectiveStages = isAdmin ? STAGES : STAGES.filter(s => !s.adminOnly)
@@ -210,6 +211,16 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
         }
     }
 
+    const handleStageChange = (newStageName: string) => {
+        const stageIdx = effectiveStages.findIndex(s => s.name === newStageName)
+        if (stageIdx === -1) return
+        // Mobile: cambiar tab activo
+        setActiveTab(stageIdx)
+        // Desktop: scroll a la columna destino
+        const col = desktopBoardRef.current?.querySelector(`[data-stage="${newStageName}"]`)
+        col?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' })
+    }
+
     const toggleGroup = (groupId: string) => {
         setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
     }
@@ -224,7 +235,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
 
     // --- Render helpers ---
 
-    const renderLeadsByAdvisor = (stageLeads: Lead[], stageName: string, compact = false) => {
+    const renderLeadsByAdvisor = (stageLeads: Lead[], stageName: string, compact = false, onStageChange?: (s: string) => void) => {
         if (stageLeads.length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-white/10 rounded-2xl opacity-40">
@@ -247,6 +258,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                             onSelect={isSelectionMode ? handleSelectLead : undefined}
                             userProfile={userProfile}
                             compact={compact}
+                            onStageChange={onStageChange}
                         />
                     ))}
                 </div>
@@ -306,6 +318,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                                             onSelect={isSelectionMode ? handleSelectLead : undefined}
                                             userProfile={userProfile}
                                             compact={compact}
+                                            onStageChange={onStageChange}
                                         />
                                     ))}
                                 </div>
@@ -579,7 +592,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                                 </div>
 
                                 <div className="max-h-[calc(100vh-360px)] overflow-y-auto custom-scrollbar pr-1 space-y-3">
-                                    {renderLeadsByAdvisor(stageLeads, stage.name)}
+                                    {renderLeadsByAdvisor(stageLeads, stage.name, false, handleStageChange)}
                                 </div>
                             </div>
                         )
@@ -589,6 +602,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
 
             {/* ===== COLUMNAS DESKTOP (>= md) — scroll horizontal cuando 8 columnas superan el viewport ===== */}
             <div
+                ref={desktopBoardRef}
                 className="hidden md:flex gap-4 h-[calc(100vh-300px)] overflow-x-auto overflow-y-hidden custom-scrollbar pb-2"
                 style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x proximity' } as React.CSSProperties}
             >
@@ -596,7 +610,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                     const stageLeads = getStageLeads(stage.name)
 
                     return (
-                        <div key={stage.name} className={`${isCompactView ? 'w-[160px]' : 'w-[220px]'} shrink-0 flex flex-col h-full transition-all duration-200`} style={{ scrollSnapAlign: 'start' }}>
+                        <div key={stage.name} data-stage={stage.name} className={`${isCompactView ? 'w-[160px]' : 'w-[220px]'} shrink-0 flex flex-col h-full transition-all duration-200`} style={{ scrollSnapAlign: 'start' }}>
                             {/* Column header */}
                             <div className={`p-3 rounded-xl mb-3 flex items-center justify-between ${stage.bgColor} border border-white/10 shrink-0`}>
                                 <div className="flex items-center gap-2">
@@ -642,7 +656,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
 
                             {/* Scrollable card list */}
                             <div className="flex-1 overflow-y-auto pr-1.5 custom-scrollbar space-y-0">
-                                {renderLeadsByAdvisor(stageLeads, stage.name, isCompactView)}
+                                {renderLeadsByAdvisor(stageLeads, stage.name, isCompactView, handleStageChange)}
                             </div>
                         </div>
                     )

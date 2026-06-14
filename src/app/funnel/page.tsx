@@ -43,7 +43,9 @@ export default async function FunnelPage({
                 </Link>
                 <div>
                     <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-heading">
-                        {isAdmin ? 'Panel de Control' : 'Mi Embudo'}
+                        {isAdmin
+                            ? 'Panel de Control'
+                            : `Hola, ${userProfile?.whatsapp_name ?? 'bienvenido'} 👋`}
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500">
                         {isAdmin
