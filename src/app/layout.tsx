@@ -68,9 +68,10 @@ export default async function RootLayout({
                 <Image
                   src="/nexo-salud-logo.png"
                   alt="Nexo Salud"
-                  width={120}
-                  height={48}
-                  className="h-10 w-auto object-contain"
+                  width={180}
+                  height={72}
+                  className="h-16 w-auto object-contain"
+                  style={{ mixBlendMode: 'screen' }}
                   priority
                 />
               </Link>
