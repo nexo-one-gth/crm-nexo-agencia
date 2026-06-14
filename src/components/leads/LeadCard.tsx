@@ -17,6 +17,7 @@ import { LeadEditModal } from '@/components/leads/LeadEditModal'
 import { AlertDialog } from '@/components/ui/AlertDialog'
 
 interface LeadCardProps {
+    compact?: boolean
     lead: {
         id: string
         first_name: string
@@ -85,7 +86,7 @@ const formatCurrency = (value?: number) => {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value)
 }
 
-export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: LeadCardProps) => {
+export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, compact = false }: LeadCardProps) => {
     const [isExpanded, setIsExpanded] = useState(false)
     const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false)
     const [isCommentsOpen, setIsCommentsOpen] = useState(false)
@@ -191,7 +192,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                 <div className={`w-1.5 shrink-0 bg-gradient-to-b ${getStageStyle(lead.stage_name)} opacity-80`} />
 
                 {/* === CONTENIDO PRINCIPAL COMPACTO === */}
-                <div className="flex-1 p-2.5 flex flex-col gap-2 min-w-0">
+                <div className={`flex-1 flex flex-col gap-2 min-w-0 ${compact ? 'p-2' : 'p-2.5'}`}>
 
                     {/* Fila 1: Header denso */}
                     <div className="flex justify-between items-start">
@@ -246,8 +247,8 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile }: L
                         </div>
                     </div>
 
-                    {/* Fila 2: Badges (Interés, Origen, Asesor) */}
-                    <div className="flex flex-wrap items-center gap-1.5">
+                    {/* Fila 2: Badges (Interés, Origen, Asesor) — ocultos en vista compacta */}
+                    <div className={`flex flex-wrap items-center gap-1.5 ${compact ? 'hidden' : ''}`}>
                         <div className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 flex items-center gap-1 max-w-[120px] truncate">
                             <div className={`w-1.5 h-1.5 rounded-full bg-gradient-to-br ${getStageStyle(lead.stage_name)}`} />
                             <span className="truncate">{lead.plan || 'Sin especificar'}</span>

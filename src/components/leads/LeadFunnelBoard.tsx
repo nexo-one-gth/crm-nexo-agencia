@@ -5,7 +5,8 @@ import { LeadCard } from './LeadCard'
 import {
     MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus,
     Plus, FileUp, UserCheck, X, Filter, ChevronDown, ChevronRight,
-    User, Search, RefreshCw, SortAsc, ArrowUpDown, AlertTriangle, DollarSign, Trash2
+    User, Search, RefreshCw, SortAsc, ArrowUpDown, AlertTriangle, DollarSign, Trash2,
+    LayoutGrid, Columns
 } from 'lucide-react'
 import { ImportLeadsDialog } from './ImportLeadsDialog'
 import { CreateLeadDialog } from './CreateLeadDialog'
@@ -105,6 +106,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
     const [showSortMenu, setShowSortMenu] = useState(false)
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
+    const [isCompactView, setIsCompactView] = useState(false)
     const router = useRouter()
 
     const effectiveStages = isAdmin ? STAGES : STAGES.filter(s => !s.adminOnly)
@@ -222,7 +224,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
 
     // --- Render helpers ---
 
-    const renderLeadsByAdvisor = (stageLeads: Lead[], stageName: string) => {
+    const renderLeadsByAdvisor = (stageLeads: Lead[], stageName: string, compact = false) => {
         if (stageLeads.length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-white/10 rounded-2xl opacity-40">
@@ -244,6 +246,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                             isSelected={selectedLeads.includes(lead.id)}
                             onSelect={isSelectionMode ? handleSelectLead : undefined}
                             userProfile={userProfile}
+                            compact={compact}
                         />
                     ))}
                 </div>
@@ -302,6 +305,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                                             isSelected={selectedLeads.includes(lead.id)}
                                             onSelect={isSelectionMode ? handleSelectLead : undefined}
                                             userProfile={userProfile}
+                                            compact={compact}
                                         />
                                     ))}
                                 </div>
@@ -378,12 +382,24 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                         )}
                     </div>
 
-                    {/* Refresh + timestamp */}
+                    {/* Refresh + toggle vista compacta + timestamp */}
                     <div className="flex items-center gap-2">
                         <div className="hidden sm:flex flex-col items-end">
                             <span className="text-[9px] text-slate-400 font-medium">Actualizado</span>
                             <span className="text-[9px] text-slate-500">{formatLastRefresh(lastRefresh)}</span>
                         </div>
+                        {/* Solo visible en desktop donde aplica el board de columnas */}
+                        <button
+                            onClick={() => setIsCompactView(prev => !prev)}
+                            className={`hidden md:flex p-2 rounded-xl glass-button transition-all items-center gap-1.5 text-xs font-bold ${isCompactView ? 'text-blue-600 dark:text-blue-400 bg-blue-500/10' : 'text-slate-500 dark:text-slate-400'}`}
+                            title={isCompactView ? 'Vista normal' : 'Vista compacta'}
+                        >
+                            {isCompactView
+                                ? <Columns className="w-4 h-4" />
+                                : <LayoutGrid className="w-4 h-4" />
+                            }
+                            <span className="hidden lg:inline">{isCompactView ? 'Normal' : 'Compacta'}</span>
+                        </button>
                         <button
                             onClick={handleRefresh}
                             disabled={isRefreshing}
@@ -580,7 +596,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                     const stageLeads = getStageLeads(stage.name)
 
                     return (
-                        <div key={stage.name} className="w-[300px] shrink-0 flex flex-col h-full" style={{ scrollSnapAlign: 'start' }}>
+                        <div key={stage.name} className={`${isCompactView ? 'w-[160px]' : 'w-[220px]'} shrink-0 flex flex-col h-full transition-all duration-200`} style={{ scrollSnapAlign: 'start' }}>
                             {/* Column header */}
                             <div className={`p-3 rounded-xl mb-3 flex items-center justify-between ${stage.bgColor} border border-white/10 shrink-0`}>
                                 <div className="flex items-center gap-2">
@@ -626,7 +642,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
 
                             {/* Scrollable card list */}
                             <div className="flex-1 overflow-y-auto pr-1.5 custom-scrollbar space-y-0">
-                                {renderLeadsByAdvisor(stageLeads, stage.name)}
+                                {renderLeadsByAdvisor(stageLeads, stage.name, isCompactView)}
                             </div>
                         </div>
                     )
