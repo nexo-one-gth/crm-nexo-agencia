@@ -4,7 +4,7 @@ import { useState } from 'react'
 import {
     Phone, Mail, MapPin, User, Calendar, Clock, CheckCircle2,
     AlertCircle, DollarSign, MessageCircle, FileText, Activity as ActivityIcon,
-    ChevronRight, ArrowLeft, Send, History, UserCheck, Flame, CreditCard, Briefcase, Users, Edit
+    ChevronRight, ArrowLeft, Send, History, UserCheck, Flame, CreditCard, Briefcase, Users, Edit, Calculator
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -27,7 +27,9 @@ interface LeadDetailViewProps {
 }
 
 export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
-    const [activeTab, setActiveTab] = useState('info')
+    const STAGES_CON_COTIZADOR = ['Contactado', 'Interesado', 'Cotizado']
+    const puedeCotar = STAGES_CON_COTIZADOR.includes(lead.stage_name)
+    const [activeTab, setActiveTab] = useState(lead.stage_name === 'Interesado' ? 'quote' : 'info')
     const [isEditOpen, setIsEditOpen] = useState(false)
     const completion = calculateLeadCompletion(lead)
 
@@ -68,13 +70,24 @@ export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
                             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                             <span className="font-bold">Volver al Funnel</span>
                         </Link>
-                        <button
-                            onClick={() => setIsEditOpen(true)}
-                            className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-bold transition-colors border border-white/20"
-                        >
-                            <Edit className="w-4 h-4" />
-                            Editar Lead
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {puedeCotar && (
+                                <button
+                                    onClick={() => setActiveTab('quote')}
+                                    className="bg-white text-indigo-700 hover:bg-white/90 px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-black transition-colors shadow-lg shadow-black/20"
+                                >
+                                    <Calculator className="w-4 h-4" />
+                                    Cotizar
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setIsEditOpen(true)}
+                                className="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-bold transition-colors border border-white/20"
+                            >
+                                <Edit className="w-4 h-4" />
+                                Editar Lead
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -338,11 +351,10 @@ export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
                             )}
 
                             {activeTab === 'quote' && (
-                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8">
-                                    {lead.stage_name === 'Interesado' && (
+                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6">
+                                    {puedeCotar ? (
                                         <PanelCotizacion leadId={lead.id} stageName={lead.stage_name} />
-                                    )}
-                                    {lead.stage_name !== 'Interesado' && (
+                                    ) : (
                                         lead.valor_final_socio ? (
                                             <div className="space-y-8">
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -353,7 +365,6 @@ export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
                                                         </p>
                                                         <p className="text-sm text-emerald-600/60 mt-2 font-bold uppercase tracking-widest">Plan Seleccionado: {lead.plan}</p>
                                                     </div>
-
                                                     <div className="space-y-4 pt-4">
                                                         <div className="flex justify-between items-center text-sm">
                                                             <span className="text-slate-400 font-bold">Valor Base</span>
@@ -373,7 +384,6 @@ export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
                                                         </div>
                                                     </div>
                                                 </div>
-
                                                 {lead.observaciones_cotizacion && (
                                                     <div className="p-6 rounded-3xl bg-blue-500/5 border border-blue-500/10 space-y-2">
                                                         <h5 className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Observaciones</h5>

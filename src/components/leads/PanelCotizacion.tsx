@@ -280,8 +280,9 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
   const [accesoCotizador, setAccesoCotizador] = useState<CotizadorAcceso | null>(null)
   const [cargandoAcceso, setCargandoAcceso] = useState(false)
 
-  // Solo se renderiza en etapa Interesado
-  if (stageName !== 'Interesado') return null
+  // Solo se renderiza en etapas donde tiene sentido cotizar
+  const STAGES_CON_COTIZADOR = ['Contactado', 'Interesado', 'Cotizado']
+  if (!STAGES_CON_COTIZADOR.includes(stageName)) return null
 
   // Sincronizar formulario cuando hay cotizaciones previas
   // eslint-disable-next-line react-hooks/rules-of-hooks
