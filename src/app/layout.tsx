@@ -71,7 +71,6 @@ export default async function RootLayout({
                   width={180}
                   height={72}
                   className="h-16 w-auto object-contain"
-                  style={{ mixBlendMode: 'screen' }}
                   priority
                 />
               </Link>
