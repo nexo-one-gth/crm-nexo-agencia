@@ -177,14 +177,18 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setIsSaving(true)
-        // Convertir strings vacíos a undefined para que coerce.number() no los rechace
+        // Normalizar el formData: null → undefined (Supabase devuelve null para campos vacíos)
+        // y strings vacíos → undefined en campos numéricos (z.coerce.number no acepta "")
+        const base = Object.fromEntries(
+            Object.entries(formData).map(([k, v]) => [k, v === null ? undefined : v])
+        ) as LeadFormData
         const sanitized = {
-            ...formData,
-            valor_plan: formData.valor_plan === ('' as unknown) ? undefined : formData.valor_plan,
-            descuento_aportes: formData.descuento_aportes === ('' as unknown) ? undefined : formData.descuento_aportes,
-            descuento_comercial: formData.descuento_comercial === ('' as unknown) ? undefined : formData.descuento_comercial,
-            valor_final_socio: formData.valor_final_socio === ('' as unknown) ? undefined : formData.valor_final_socio,
-            valor_forecast: formData.valor_forecast === ('' as unknown) ? undefined : formData.valor_forecast,
+            ...base,
+            valor_plan: base.valor_plan === ('' as unknown) ? undefined : base.valor_plan,
+            descuento_aportes: base.descuento_aportes === ('' as unknown) ? undefined : base.descuento_aportes,
+            descuento_comercial: base.descuento_comercial === ('' as unknown) ? undefined : base.descuento_comercial,
+            valor_final_socio: base.valor_final_socio === ('' as unknown) ? undefined : base.valor_final_socio,
+            valor_forecast: base.valor_forecast === ('' as unknown) ? undefined : base.valor_forecast,
         }
         const parseResult = leadUpdateSchema.safeParse(sanitized)
         if (!parseResult.success) {
