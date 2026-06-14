@@ -15,7 +15,7 @@ ALTER TABLE prepaga_credenciales ENABLE ROW LEVEL SECURITY;
 UPDATE prepagas
 SET
   tipo_cotizador = 'externo',
-  cotizador_url  = 'https://admin-compraonline.avalian.com/users/login'
+  cotizador_url  = 'https://online.avalian.com/ingreso?returnUrl=%2Fcotizador%2Findividuos%2Flistado'
 WHERE nombre ILIKE '%avalian%';
 
 -- Insertar credenciales compartidas de AVALIAN
