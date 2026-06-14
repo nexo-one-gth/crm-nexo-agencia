@@ -33,8 +33,14 @@ export interface PrepagaConCotizador {
   slug: string
 }
 
+export interface PdfListado {
+  label: string
+  url: string
+}
+
 export interface CotizadorAcceso {
   url: string | null
   usuario: string | null
   password: string | null
+  pdfs?: PdfListado[]
 }

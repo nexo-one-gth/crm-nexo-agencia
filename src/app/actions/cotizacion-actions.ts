@@ -206,11 +206,17 @@ export async function getCotizadorAcceso(
     .eq('prepaga_id', prepagaId)
     .maybeSingle()
 
-  const credJson = creds?.credenciales as { usuario?: string; password?: string } | null
+  type CredJson = {
+    usuario?: string
+    password?: string
+    pdfs?: Array<{ label: string; url: string }>
+  }
+  const credJson = creds?.credenciales as CredJson | null
 
   return {
     url: prepaga?.cotizador_url ?? null,
     usuario: credJson?.usuario ?? null,
     password: credJson?.password ?? null,
+    pdfs: credJson?.pdfs ?? [],
   }
 }

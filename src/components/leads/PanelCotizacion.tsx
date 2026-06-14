@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { useCotizacion } from '@/hooks/useCotizacion'
 import { iniciarAltaDesdeCotizacion, getCotizadorAcceso } from '@/app/actions/cotizacion-actions'
-import type { Integrante, LeadCotizacion, PrepagaConCotizador, CotizadorAcceso } from '@/types/cotizacion'
+import type { Integrante, LeadCotizacion, PrepagaConCotizador, CotizadorAcceso, PdfListado } from '@/types/cotizacion'
 
 interface PanelCotizacionProps {
   leadId: string
@@ -307,10 +307,19 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
     }
   }, [cotizacionActiva, prepagasDelAsesor])
 
-  // Limpiar acceso cuando cambia la prepaga
+  // Limpiar acceso cuando cambia la prepaga; auto-fetch para tipo pdf
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
     setAccesoCotizador(null)
+    if (!prepagaSeleccionada) return
+    if (prepagaSeleccionada.tipo_cotizador === 'pdf') {
+      setCargandoAcceso(true)
+      getCotizadorAcceso(prepagaSeleccionada.id).then(result => {
+        setCargandoAcceso(false)
+        if (!result.error) setAccesoCotizador(result)
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prepagaSeleccionada?.id])
 
   const num = (v: string) => (v === '' ? null : Number(v))
@@ -467,7 +476,8 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
                     <>
                       <hr className="border-white/10" />
 
-                      {(prepagaSeleccionada.tipo_cotizador === 'externo' || prepagaSeleccionada.tipo_cotizador === 'pdf') && (
+                      {/* Cotizador externo (ej. Avalian): abre web + muestra credenciales */}
+                      {prepagaSeleccionada.tipo_cotizador === 'externo' && (
                         <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 space-y-3">
                           <p className="text-xs font-black uppercase tracking-widest text-blue-600">Cotizador Externo</p>
                           <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -495,6 +505,41 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
                               <CredencialRow label="Usuario" value={accesoCotizador.usuario} />
                               <CredencialRow label="Contraseña" value={accesoCotizador.password} />
                             </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Lista de precios PDF (ej. Premedic): abre cada PDF desde Drive */}
+                      {prepagaSeleccionada.tipo_cotizador === 'pdf' && (
+                        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-3">
+                          <p className="text-xs font-black uppercase tracking-widest text-amber-600">Lista de Precios</p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">
+                            Abrí la lista correspondiente, buscá el valor por edad/plan y completá el resultado abajo.
+                          </p>
+                          {cargandoAcceso && (
+                            <div className="flex items-center gap-2 text-amber-500">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span className="text-xs font-bold">Cargando listas...</span>
+                            </div>
+                          )}
+                          {!cargandoAcceso && accesoCotizador?.pdfs && accesoCotizador.pdfs.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {accesoCotizador.pdfs.map((pdf: PdfListado) => (
+                                <a
+                                  key={pdf.url}
+                                  href={pdf.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-black transition-colors"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                  {pdf.label}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                          {!cargandoAcceso && (!accesoCotizador?.pdfs || accesoCotizador.pdfs.length === 0) && (
+                            <p className="text-xs text-amber-600 font-bold">Sin listas cargadas — contactá al administrador.</p>
                           )}
                         </div>
                       )}
