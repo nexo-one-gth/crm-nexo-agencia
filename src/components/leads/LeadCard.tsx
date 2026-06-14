@@ -270,9 +270,19 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                     {(() => {
                         const currentIdx = PIPELINE_STAGES.findIndex(s => s.key === lead.stage_name)
                         const nextStage = currentIdx >= 0 && currentIdx < PIPELINE_STAGES.length - 1 ? PIPELINE_STAGES[currentIdx + 1] : null
+                        const prevStage = currentIdx > 0 ? PIPELINE_STAGES[currentIdx - 1] : null
                         const isAltaNext = nextStage?.key === 'Alta en Proceso'
                         return (
                             <div className="flex items-center gap-1.5 mt-1 pt-2 border-t border-slate-100 dark:border-white/5" ref={discardRef}>
+                                {prevStage && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleStageUpdate(prevStage.key) }}
+                                        className="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1"
+                                        title={`Volver a ${prevStage.label}`}
+                                    >
+                                        <ChevronDown className="w-3 h-3 rotate-90" />
+                                    </button>
+                                )}
                                 {nextStage && (
                                     isAltaNext ? (
                                         <Link
