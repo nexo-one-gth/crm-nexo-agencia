@@ -550,6 +550,92 @@ export type Database = {
           },
         ]
       }
+      lead_cotizaciones: {
+        Row: {
+          asesor_id: string
+          cotizador_tipo: string
+          created_at: string
+          descuento_aportes: number | null
+          descuento_comercial: number | null
+          estado: string
+          id: string
+          integrantes: Json
+          iva: number | null
+          lead_id: string
+          observaciones: string | null
+          plan_id: string | null
+          prepaga_id: string
+          updated_at: string
+          valor_calculado: number | null
+          valor_final: number | null
+        }
+        Insert: {
+          asesor_id: string
+          cotizador_tipo: string
+          created_at?: string
+          descuento_aportes?: number | null
+          descuento_comercial?: number | null
+          estado?: string
+          id?: string
+          integrantes?: Json
+          iva?: number | null
+          lead_id: string
+          observaciones?: string | null
+          plan_id?: string | null
+          prepaga_id: string
+          updated_at?: string
+          valor_calculado?: number | null
+          valor_final?: number | null
+        }
+        Update: {
+          asesor_id?: string
+          cotizador_tipo?: string
+          created_at?: string
+          descuento_aportes?: number | null
+          descuento_comercial?: number | null
+          estado?: string
+          id?: string
+          integrantes?: Json
+          iva?: number | null
+          lead_id?: string
+          observaciones?: string | null
+          plan_id?: string | null
+          prepaga_id?: string
+          updated_at?: string
+          valor_calculado?: number | null
+          valor_final?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_cotizaciones_asesor_id_fkey"
+            columns: ["asesor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_cotizaciones_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_cotizaciones_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "prepaga_planes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_cotizaciones_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           address_city: string | null
@@ -567,7 +653,7 @@ export type Database = {
           discard_reason: string | null
           dni: string | null
           documentacion_pendiente: string | null
-          edades: string | null
+          edades: Json | null
           email: string | null
           etapa_historial: Json | null
           first_name: string
@@ -608,7 +694,7 @@ export type Database = {
           discard_reason?: string | null
           dni?: string | null
           documentacion_pendiente?: string | null
-          edades?: string | null
+          edades?: Json | null
           email?: string | null
           etapa_historial?: Json | null
           first_name: string
@@ -649,7 +735,7 @@ export type Database = {
           discard_reason?: string | null
           dni?: string | null
           documentacion_pendiente?: string | null
-          edades?: string | null
+          edades?: Json | null
           email?: string | null
           etapa_historial?: Json | null
           first_name?: string
@@ -785,6 +871,35 @@ export type Database = {
             foreignKeyName: "prepaga_asesores_prepaga_id_fkey"
             columns: ["prepaga_id"]
             isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prepaga_credenciales: {
+        Row: {
+          created_at: string | null
+          credenciales: Json
+          prepaga_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          credenciales?: Json
+          prepaga_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          credenciales?: Json
+          prepaga_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prepaga_credenciales_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: true
             referencedRelation: "prepagas"
             referencedColumns: ["id"]
           },

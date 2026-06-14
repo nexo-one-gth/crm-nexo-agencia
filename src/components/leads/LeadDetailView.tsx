@@ -11,6 +11,7 @@ import { es } from 'date-fns/locale'
 import Link from 'next/link'
 import { calculateLeadCompletion, getCompletionColor } from '@/lib/utils/lead-completion'
 import { LeadEditModal } from '@/components/leads/LeadEditModal'
+import { PanelCotizacion } from '@/components/leads/PanelCotizacion'
 
 interface Activity {
     id: string
@@ -338,49 +339,54 @@ export const LeadDetailView = ({ lead, activities }: LeadDetailViewProps) => {
 
                             {activeTab === 'quote' && (
                                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8">
-                                    {lead.valor_final_socio ? (
-                                        <div className="space-y-8">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                <div className="p-8 rounded-3xl bg-emerald-500/10 border border-emerald-500/20">
-                                                    <h5 className="text-[10px] font-black uppercase text-emerald-600 tracking-widest mb-2">Cuota Mensual Final</h5>
-                                                    <p className="text-5xl font-black text-emerald-600 tracking-tighter">
-                                                        {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.valor_final_socio)}
-                                                    </p>
-                                                    <p className="text-sm text-emerald-600/60 mt-2 font-bold uppercase tracking-widest">Plan Seleccionado: {lead.plan}</p>
+                                    {lead.stage_name === 'Interesado' && (
+                                        <PanelCotizacion leadId={lead.id} stageName={lead.stage_name} />
+                                    )}
+                                    {lead.stage_name !== 'Interesado' && (
+                                        lead.valor_final_socio ? (
+                                            <div className="space-y-8">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                                    <div className="p-8 rounded-3xl bg-emerald-500/10 border border-emerald-500/20">
+                                                        <h5 className="text-[10px] font-black uppercase text-emerald-600 tracking-widest mb-2">Cuota Mensual Final</h5>
+                                                        <p className="text-5xl font-black text-emerald-600 tracking-tighter">
+                                                            {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.valor_final_socio)}
+                                                        </p>
+                                                        <p className="text-sm text-emerald-600/60 mt-2 font-bold uppercase tracking-widest">Plan Seleccionado: {lead.plan}</p>
+                                                    </div>
+
+                                                    <div className="space-y-4 pt-4">
+                                                        <div className="flex justify-between items-center text-sm">
+                                                            <span className="text-slate-400 font-bold">Valor Base</span>
+                                                            <span className="font-black">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.valor_plan || 0)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-sm">
+                                                            <span className="text-slate-400 font-bold">IVA</span>
+                                                            <span className="font-black">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.iva || 0)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-sm text-rose-500">
+                                                            <span className="font-bold">Bonificación Aportes</span>
+                                                            <span className="font-black">-{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.descuento_aportes || 0)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-sm text-rose-500">
+                                                            <span className="font-bold">Descuento Comercial</span>
+                                                            <span className="font-black">-{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.descuento_comercial || 0)}</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
 
-                                                <div className="space-y-4 pt-4">
-                                                    <div className="flex justify-between items-center text-sm">
-                                                        <span className="text-slate-400 font-bold">Valor Base</span>
-                                                        <span className="font-black">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.valor_plan || 0)}</span>
+                                                {lead.observaciones_cotizacion && (
+                                                    <div className="p-6 rounded-3xl bg-blue-500/5 border border-blue-500/10 space-y-2">
+                                                        <h5 className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Observaciones</h5>
+                                                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic">&quot;{lead.observaciones_cotizacion}&quot;</p>
                                                     </div>
-                                                    <div className="flex justify-between items-center text-sm">
-                                                        <span className="text-slate-400 font-bold">IVA</span>
-                                                        <span className="font-black">{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.iva || 0)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-sm text-rose-500">
-                                                        <span className="font-bold">Bonificación Aportes</span>
-                                                        <span className="font-black">-{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.descuento_aportes || 0)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-sm text-rose-500">
-                                                        <span className="font-bold">Descuento Comercial</span>
-                                                        <span className="font-black">-{new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(lead.descuento_comercial || 0)}</span>
-                                                    </div>
-                                                </div>
+                                                )}
                                             </div>
-
-                                            {lead.observaciones_cotizacion && (
-                                                <div className="p-6 rounded-3xl bg-blue-500/5 border border-blue-500/10 space-y-2">
-                                                    <h5 className="text-[10px] font-black uppercase text-blue-500 tracking-widest">Observaciones</h5>
-                                                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic">&quot;{lead.observaciones_cotizacion}&quot;</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center h-64 opacity-20">
-                                            <DollarSign className="w-16 h-16 mb-4" />
-                                            <p className="font-black text-xl">Sin cotización generada</p>
-                                        </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-64 opacity-20">
+                                                <DollarSign className="w-16 h-16 mb-4" />
+                                                <p className="font-black text-xl">Sin cotización generada</p>
+                                            </div>
+                                        )
                                     )}
                                 </div>
                             )}
