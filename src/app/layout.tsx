@@ -4,6 +4,7 @@ import "./globals.css";
 import { createClient } from "@/lib/supabase/server";
 import { Settings as SettingsIcon } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { Toaster } from "sonner";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { BottomNav } from "@/components/ui/BottomNav";
@@ -63,13 +64,15 @@ export default async function RootLayout({
           {/* Navigation */}
           <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/5 border-b border-white/10 px-4 sm:px-6 py-3">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
-              <Link href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
-                  N
-                </div>
-                <span className="text-lg sm:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
-                  Nexo
-                </span>
+              <Link href="/" className="flex items-center">
+                <Image
+                  src="/nexo-salud-logo.png"
+                  alt="Nexo Salud"
+                  width={120}
+                  height={48}
+                  className="h-10 w-auto object-contain"
+                  priority
+                />
               </Link>
 
               <div className="flex items-center gap-2 sm:gap-3">
