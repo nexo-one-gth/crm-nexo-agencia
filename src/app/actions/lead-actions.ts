@@ -381,3 +381,30 @@ export async function deleteLeads(leadIds: string[]) {
     revalidatePath('/')
     return { success: true }
 }
+
+export async function getAdvisorsForFilter(): Promise<{ id: string; nombre: string }[]> {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
+    const { data: perfil } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+    if (perfil?.role !== 'admin') return []
+
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .eq('role', 'asesor')
+        .order('first_name', { ascending: true })
+
+    if (error || !data) return []
+
+    return data.map(p => ({
+        id: p.id,
+        nombre: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim()
+    }))
+}

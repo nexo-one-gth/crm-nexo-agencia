@@ -1,4 +1,4 @@
-import { getAllLeads } from '@/app/actions/lead-actions'
+import { getAllLeads, getAdvisorsForFilter } from '@/app/actions/lead-actions'
 import { LeadFunnelBoard } from '@/components/leads/LeadFunnelBoard'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
@@ -30,7 +30,10 @@ export default async function FunnelPage({
         } : null
     }
 
-    const leads = await getAllLeads()
+    const [leads, asesores] = await Promise.all([
+        getAllLeads(),
+        isAdmin ? getAdvisorsForFilter() : Promise.resolve([])
+    ])
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -61,6 +64,7 @@ export default async function FunnelPage({
                 isAdmin={isAdmin}
                 userProfile={userProfile}
                 initialStage={params.stage}
+                asesores={asesores}
             />
         </div>
     )
