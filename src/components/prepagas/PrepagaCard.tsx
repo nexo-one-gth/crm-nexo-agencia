@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ExternalLink, FileText, Shield } from 'lucide-react'
+import { Eye, Calculator, ExternalLink, FileText } from 'lucide-react'
 
 type Prepaga = {
   id: string
@@ -19,80 +19,88 @@ interface PrepagaCardProps {
   planesCount?: number
 }
 
-const GRADIENTES: Record<number, string> = {
-  0: 'from-blue-500 to-blue-700',
-  1: 'from-emerald-500 to-emerald-700',
-  2: 'from-purple-500 to-purple-700',
-  3: 'from-rose-500 to-rose-700',
-  4: 'from-amber-500 to-amber-700',
-  5: 'from-cyan-500 to-cyan-700',
-  6: 'from-indigo-500 to-indigo-700',
-  7: 'from-teal-500 to-teal-700',
-  8: 'from-pink-500 to-pink-700',
-  9: 'from-orange-500 to-orange-700',
+const ACCENT_COLORS: Record<number, { bg: string; border: string; text: string }> = {
+  0: { bg: '#1e3a8a', border: '#3b82f6', text: '#93c5fd' },
+  1: { bg: '#064e3b', border: '#10b981', text: '#6ee7b7' },
+  2: { bg: '#3b0764', border: '#8b5cf6', text: '#c4b5fd' },
+  3: { bg: '#7c2d12', border: '#f43f5e', text: '#fda4af' },
+  4: { bg: '#78350f', border: '#f59e0b', text: '#fcd34d' },
+  5: { bg: '#164e63', border: '#06b6d4', text: '#67e8f9' },
+  6: { bg: '#312e81', border: '#6366f1', text: '#a5b4fc' },
+  7: { bg: '#134e4a', border: '#14b8a6', text: '#5eead4' },
+  8: { bg: '#831843', border: '#ec4899', text: '#f9a8d4' },
+  9: { bg: '#7c2d12', border: '#f97316', text: '#fdba74' },
 }
 
 export function PrepagaCard({ prepaga, planesCount = 0 }: PrepagaCardProps) {
-  const gradiente = GRADIENTES[(prepaga.orden - 1) % 10] ?? 'from-blue-500 to-blue-700'
-  const iniciales = prepaga.nombre.split(' ').map(w => w[0]).join('').slice(0, 2)
+  const colors = ACCENT_COLORS[(prepaga.orden - 1) % 10] ?? ACCENT_COLORS[0]
+  const iniciales = prepaga.nombre.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+  const hasCotizador = !!prepaga.cotizador_url
 
   return (
-    <div className="group relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden hover:shadow-lg hover:shadow-slate-200/50 dark:hover:shadow-black/30 transition-all duration-200">
-      {/* Header con gradiente */}
-      <div className={`h-20 bg-gradient-to-br ${gradiente} flex items-center justify-between px-5`}>
-        <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-          {prepaga.logo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={prepaga.logo_url} alt={prepaga.nombre} className="w-10 h-10 object-contain rounded-lg" />
-          ) : (
-            <span className="text-white font-black text-lg">{iniciales}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          {prepaga.tipo_cotizador === 'externo' && prepaga.cotizador_url && (
-            <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-              <ExternalLink className="w-3 h-3" />
+    <div
+      className="group relative flex items-center gap-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-white/8 hover:border-slate-300 dark:hover:border-white/15 transition-all duration-200"
+      style={{ borderLeft: `3px solid ${colors.border}` }}
+    >
+      {/* Avatar */}
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black text-sm"
+        style={{ background: colors.bg, color: colors.text }}
+      >
+        {prepaga.logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={prepaga.logo_url} alt={prepaga.nombre} className="w-8 h-8 object-contain rounded-lg" />
+        ) : (
+          iniciales
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-slate-900 dark:text-white truncate leading-tight">
+          {prepaga.nombre}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+            {prepaga.tipo_cotizador}
+            {planesCount > 0 && (
+              <span className="ml-1.5 inline-flex items-center gap-0.5">
+                <FileText className="w-2.5 h-2.5" />
+                {planesCount} {planesCount === 1 ? 'plan' : 'planes'}
+              </span>
+            )}
+          </span>
+          {hasCotizador && (
+            <span
+              className="text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-0.5"
+              style={{ background: `${colors.border}22`, color: colors.text, border: `1px solid ${colors.border}44` }}
+            >
+              <ExternalLink className="w-2.5 h-2.5" />
               Cotizador
             </span>
           )}
         </div>
       </div>
 
-      {/* Contenido */}
-      <div className="p-4">
-        <h3 className="font-bold text-slate-900 dark:text-white text-sm leading-tight mb-1">
-          {prepaga.nombre}
-        </h3>
-        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mb-4">
-          {planesCount > 0 && (
-            <span className="flex items-center gap-1">
-              <FileText className="w-3 h-3" />
-              {planesCount} {planesCount === 1 ? 'plan' : 'planes'}
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            <Shield className="w-3 h-3" />
-            {prepaga.tipo_cotizador}
-          </span>
-        </div>
-
-        {/* Acciones */}
-        <div className="flex gap-2">
+      {/* Acciones */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <Link
+          href={`/prepagas/${prepaga.slug}`}
+          className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
+          title="Ver detalle"
+        >
+          <Eye className="w-3.5 h-3.5" />
+        </Link>
+        {hasCotizador && (
           <Link
-            href={`/prepagas/${prepaga.slug}`}
-            className="flex-1 text-center text-xs font-semibold py-2 px-3 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300 transition-colors"
+            href={`/prepagas/${prepaga.slug}/cotizar`}
+            className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors"
+            style={{ background: `${colors.border}22`, color: colors.text, border: `1px solid ${colors.border}44` }}
+            title="Cotizar"
           >
-            Ver detalle
+            <Calculator className="w-3.5 h-3.5" />
           </Link>
-          {prepaga.cotizador_url && (
-            <Link
-              href={`/prepagas/${prepaga.slug}/cotizar`}
-              className="flex-1 text-center text-xs font-semibold py-2 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:opacity-90 transition-opacity"
-            >
-              Cotizar
-            </Link>
-          )}
-        </div>
+        )}
       </div>
     </div>
   )

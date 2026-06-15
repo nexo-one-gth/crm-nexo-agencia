@@ -49,6 +49,39 @@ export type Database = {
           },
         ]
       }
+      admin_asesores: {
+        Row: {
+          admin_id: string
+          asesor_id: string
+          created_at: string
+        }
+        Insert: {
+          admin_id: string
+          asesor_id: string
+          created_at?: string
+        }
+        Update: {
+          admin_id?: string
+          asesor_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_asesores_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_asesores_asesor_id_fkey"
+            columns: ["asesor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alta_items: {
         Row: {
           alta_id: string
@@ -1035,6 +1068,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          aparecer_en_tablero: boolean
+          codigo_productor: string | null
           created_at: string
           email: string | null
           first_name: string | null
@@ -1043,6 +1078,8 @@ export type Database = {
           role: string | null
         }
         Insert: {
+          aparecer_en_tablero?: boolean
+          codigo_productor?: string | null
           created_at?: string
           email?: string | null
           first_name?: string | null
@@ -1051,6 +1088,8 @@ export type Database = {
           role?: string | null
         }
         Update: {
+          aparecer_en_tablero?: boolean
+          codigo_productor?: string | null
           created_at?: string
           email?: string | null
           first_name?: string | null

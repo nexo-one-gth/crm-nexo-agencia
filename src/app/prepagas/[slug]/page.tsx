@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { getPrepagaBySlug } from '@/app/actions/prepaga-actions'
 import Link from 'next/link'
-import { ArrowLeft, FileText, ExternalLink, Plus } from 'lucide-react'
+import { ArrowLeft, FileText, ExternalLink, Plus, Settings2 } from 'lucide-react'
 import { IniciarAltaDesdeDetalle } from './IniciarAltaDesdeDetalle'
+import { PlanesAdminSection } from './PlanesAdminSection'
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -18,6 +19,9 @@ export default async function PrepagaDetallePage({ params }: { params: Promise<{
 
   const prepaga = await getPrepagaBySlug(slug)
   if (!prepaga) notFound()
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const isAdmin = profile?.role === 'admin'
 
   const planesActivos = (prepaga.prepaga_planes ?? []).filter((p: { activo: boolean }) => p.activo)
 
@@ -63,10 +67,27 @@ export default async function PrepagaDetallePage({ params }: { params: Promise<{
             <FileText className="w-4 h-4 text-blue-500" />
             Planes disponibles
           </h2>
-          <span className="text-xs text-slate-400">{planesActivos.length} activos</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">{planesActivos.length} activos</span>
+            {isAdmin && (
+              <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">
+                <Settings2 className="w-3 h-3" />
+                Admin
+              </span>
+            )}
+          </div>
         </div>
 
-        {planesActivos.length === 0 ? (
+        {isAdmin ? (
+          <PlanesAdminSection
+            prepagaId={prepaga.id}
+            planesIniciales={planesActivos.map((p: { id: string; nombre: string; descripcion: string | null }) => ({
+              id: p.id,
+              nombre: p.nombre,
+              descripcion: p.descripcion,
+            }))}
+          />
+        ) : planesActivos.length === 0 ? (
           <p className="text-sm text-slate-400 text-center py-4">Sin planes cargados</p>
         ) : (
           <div className="space-y-2">

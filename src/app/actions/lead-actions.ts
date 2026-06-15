@@ -166,8 +166,18 @@ export async function getAllLeads() {
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
-    // Si no es admin, filtrar solo los leads asignados al asesor
-    if (profile?.role !== 'admin') {
+    if (profile?.role === 'admin') {
+        // Si el admin tiene asesores asignados, filtrar solo sus leads
+        const { data: adminAsesores } = await supabase
+            .from('admin_asesores')
+            .select('asesor_id')
+            .eq('admin_id', user.id)
+
+        if (adminAsesores && adminAsesores.length > 0) {
+            query = query.in('assigned_to', adminAsesores.map(a => a.asesor_id))
+        }
+        // Si no tiene asesores asignados, ve todos (backward compat)
+    } else {
         query = query.eq('assigned_to', user.id)
     }
 
@@ -382,29 +392,3 @@ export async function deleteLeads(leadIds: string[]) {
     return { success: true }
 }
 
-export async function getAdvisorsForFilter(): Promise<{ id: string; nombre: string }[]> {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return []
-
-    const { data: perfil } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-
-    if (perfil?.role !== 'admin') return []
-
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .eq('role', 'asesor')
-        .order('first_name', { ascending: true })
-
-    if (error || !data) return []
-
-    return data.map(p => ({
-        id: p.id,
-        nombre: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim()
-    }))
-}

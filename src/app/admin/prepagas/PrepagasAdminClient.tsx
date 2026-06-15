@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   crearPrepaga, actualizarPrepaga, crearPlan, eliminarPlan,
@@ -184,17 +184,20 @@ function PlanesSection({ prepagaId }: { prepagaId: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [planes, setPlanes] = useState<{ id: string; nombre: string; descripcion: string | null; activo: boolean }[]>([])
-  const [cargado, setCargado] = useState(false)
+  const [cargando, setCargando] = useState(true)
   const [nuevoNombre, setNuevoNombre] = useState('')
   const [nuevaDesc, setNuevaDesc] = useState('')
 
-  async function cargar() {
-    if (cargado) return
-    const { getPlanesPorPrepaga } = await import('@/app/actions/prepaga-actions')
-    const data = await getPlanesPorPrepaga(prepagaId)
-    setPlanes(data)
-    setCargado(true)
-  }
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const { getPlanesPorPrepaga } = await import('@/app/actions/prepaga-actions')
+      const data = await getPlanesPorPrepaga(prepagaId)
+      if (!cancelled) { setPlanes(data); setCargando(false) }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [prepagaId])
 
   async function handleCrear(e: React.FormEvent) {
     e.preventDefault()
@@ -223,12 +226,11 @@ function PlanesSection({ prepagaId }: { prepagaId: string }) {
       <h4 className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
         <FileText className="w-3.5 h-3.5" />
         Planes
-        {!cargado && (
-          <button onClick={cargar} className="text-blue-600 normal-case font-normal hover:underline">cargar</button>
-        )}
       </h4>
 
-      {cargado && (
+      {cargando ? (
+        <p className="text-xs text-slate-400 py-1">Cargando...</p>
+      ) : (
         <div className="space-y-2">
           {planes.map(plan => (
             <div key={plan.id} className="flex items-center justify-between text-sm bg-slate-50 dark:bg-white/5 rounded-xl px-3 py-2">
@@ -275,7 +277,6 @@ function AsesoresSection({ prepagaId, asesores }: { prepagaId: string; asesores:
   const [cargado, setCargado] = useState(false)
   const [asesorId, setAsesorId] = useState('')
   const [comision, setComision] = useState('')
-  const [codigo, setCodigo] = useState('')
   const [usuario, setUsuario] = useState('')
   const [clave, setClave] = useState('')
 
@@ -293,12 +294,11 @@ function AsesoresSection({ prepagaId, asesores }: { prepagaId: string; asesores:
         prepaga_id: prepagaId,
         asesor_id: asesorId,
         comision_pct: comision ? Number(comision) : null,
-        codigo_productor: codigo || null,
         credenciales: usuario || clave ? { usuario, clave } : {},
       })
       if (res.error) { toast.error(res.error); return }
       toast.success('Asesor asignado')
-      setAsesorId(''); setComision(''); setCodigo(''); setUsuario(''); setClave('')
+      setAsesorId(''); setComision(''); setUsuario(''); setClave('')
       const data = await getAsesoresDePrepaga(prepagaId)
       setAsignados(data as typeof asignados)
       router.refresh()
@@ -339,7 +339,6 @@ function AsesoresSection({ prepagaId, asesores }: { prepagaId: string; asesores:
                   </span>
                   <span className="ml-2 text-slate-400 text-xs">{prof?.email}</span>
                   {a.comision_pct && <span className="ml-2 text-xs text-blue-600">{a.comision_pct}%</span>}
-                  {a.codigo_productor && <span className="ml-2 text-xs text-slate-400">Cód: {a.codigo_productor}</span>}
                 </div>
                 <button onClick={() => a.asesor_id && handleDesasignar(a.asesor_id)} disabled={isPending}
                   className="text-rose-500 hover:text-rose-700 transition-colors p-1">
@@ -360,9 +359,6 @@ function AsesoresSection({ prepagaId, asesores }: { prepagaId: string; asesores:
                 </select>
                 <input value={comision} onChange={e => setComision(e.target.value)} type="number" min="0" max="100" step="0.01"
                   placeholder="Comisión %"
-                  className="px-3 py-1.5 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
-                <input value={codigo} onChange={e => setCodigo(e.target.value)}
-                  placeholder="Código productor"
                   className="px-3 py-1.5 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
                 <input value={usuario} onChange={e => setUsuario(e.target.value)}
                   placeholder="Usuario cotizador"

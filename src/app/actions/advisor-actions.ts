@@ -83,3 +83,145 @@ export const getAdvisors = async (): Promise<ActionResponse<Record<string, unkno
 
     return { success: true, data }
 }
+
+// Retorna asesores + admins con aparecer_en_tablero activo (para asignación de leads)
+export const getAsesoresParaAsignar = async (): Promise<ActionResponse<Record<string, unknown>[]>> => {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, email, role, aparecer_en_tablero')
+        .or('role.eq.asesor,and(role.eq.admin,aparecer_en_tablero.eq.true)')
+        .order('first_name', { ascending: true })
+
+    if (error) return { success: false, error: error.message }
+    return { success: true, data: data ?? [] }
+}
+
+export const toggleAparecer = async (advisorId: string, value: boolean): Promise<ActionResponse> => {
+    const guard = await assertAdmin()
+    if (guard.error) return { success: false, error: guard.error }
+
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('profiles')
+        .update({ aparecer_en_tablero: value })
+        .eq('id', advisorId)
+
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/settings')
+    return { success: true }
+}
+
+export const getPrepagasDeAsesor = async (asesorId: string) => {
+    const guard = await assertAdmin()
+    if (guard.error) return []
+
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('prepaga_asesores_safe')
+        .select('*, prepagas(id, nombre, slug)')
+        .eq('asesor_id', asesorId)
+        .eq('activo', true)
+
+    if (error) { console.error('getPrepagasDeAsesor:', error); return [] }
+    return data ?? []
+}
+
+export const getAllPrepagasParaAsignar = async () => {
+    const guard = await assertAdmin()
+    if (guard.error) return []
+
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('prepagas')
+        .select('id, nombre, slug')
+        .order('orden', { ascending: true })
+
+    if (error) return []
+    return data ?? []
+}
+
+type ProfileData = {
+    id: string
+    first_name: string | null
+    last_name: string | null
+    email: string | null
+    role: string
+    aparecer_en_tablero: boolean
+    codigo_productor: string | null
+}
+
+export type AdminConAsesoresData = {
+    admins: ProfileData[]
+    asesores: ProfileData[]
+    assignments: { admin_id: string; asesor_id: string }[]
+}
+
+export const getAdminsConAsesores = async (): Promise<ActionResponse<AdminConAsesoresData>> => {
+    const guard = await assertAdmin()
+    if (guard.error) return { success: false, error: guard.error }
+
+    const supabase = await createClient()
+
+    const [adminsRes, asesoresRes, assignmentsRes] = await Promise.all([
+        supabase.from('profiles').select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor').eq('role', 'admin').order('first_name', { ascending: true }),
+        supabase.from('profiles').select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor').eq('role', 'asesor').order('first_name', { ascending: true }),
+        supabase.from('admin_asesores').select('admin_id, asesor_id')
+    ])
+
+    if (adminsRes.error || asesoresRes.error) return { success: false, error: 'Error al cargar datos' }
+
+    return {
+        success: true,
+        data: {
+            admins: (adminsRes.data ?? []) as ProfileData[],
+            asesores: (asesoresRes.data ?? []) as ProfileData[],
+            assignments: assignmentsRes.data ?? []
+        }
+    }
+}
+
+export const asignarAsesorAAdmin = async (adminId: string, asesorId: string): Promise<ActionResponse> => {
+    const guard = await assertAdmin()
+    if (guard.error) return { success: false, error: guard.error }
+
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('admin_asesores')
+        .insert({ admin_id: adminId, asesor_id: asesorId })
+
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/settings')
+    return { success: true }
+}
+
+export const desasignarAsesorDeAdmin = async (adminId: string, asesorId: string): Promise<ActionResponse> => {
+    const guard = await assertAdmin()
+    if (guard.error) return { success: false, error: guard.error }
+
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('admin_asesores')
+        .delete()
+        .match({ admin_id: adminId, asesor_id: asesorId })
+
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/settings')
+    return { success: true }
+}
+
+export const actualizarCodigoProductor = async (profileId: string, codigo: string | null): Promise<ActionResponse> => {
+    const guard = await assertAdmin()
+    if (guard.error) return { success: false, error: guard.error }
+
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('profiles')
+        .update({ codigo_productor: codigo })
+        .eq('id', profileId)
+
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/settings')
+    return { success: true }
+}

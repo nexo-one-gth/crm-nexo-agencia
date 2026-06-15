@@ -5,7 +5,7 @@ import { LeadCard } from './LeadCard'
 import {
     MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus,
     Plus, FileUp, UserCheck, X, Filter, ChevronDown, ChevronRight,
-    User, Users, Search, RefreshCw, SortAsc, ArrowUpDown, AlertTriangle, DollarSign, Trash2,
+    User, Search, RefreshCw, SortAsc, ArrowUpDown, AlertTriangle, DollarSign, Trash2,
     LayoutGrid, Columns
 } from 'lucide-react'
 import { ImportLeadsDialog } from './ImportLeadsDialog'
@@ -17,11 +17,6 @@ import { useRouter } from 'next/navigation'
 import { deleteLeads } from '@/app/actions/lead-actions'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-
-interface Asesor {
-    id: string
-    nombre: string
-}
 
 interface Lead {
     id: string
@@ -66,7 +61,6 @@ interface LeadFunnelBoardProps {
         full_name: string | null
         whatsapp_name: string | null
     } | null
-    asesores?: Asesor[]
 }
 
 const STAGES = [
@@ -97,7 +91,7 @@ const sortLeads = (leads: Lead[], mode: SortMode): Lead[] => {
     })
 }
 
-export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfile, asesores }: LeadFunnelBoardProps) => {
+export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfile }: LeadFunnelBoardProps) => {
     const leads = initialLeads
     const [isImportOpen, setIsImportOpen] = useState(false)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -115,12 +109,8 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
     const [isCompactView, setIsCompactView] = useState(false)
     const [, setTick] = useState(0)
-    // null = todos los asesores; array = selección parcial
-    const [asesoresFiltrados, setAsesoresFiltrados] = useState<string[] | null>(null)
-    const [mostrarFiltroAsesores, setMostrarFiltroAsesores] = useState(false)
     const desktopBoardRef = useRef<HTMLDivElement>(null)
     const tabsRef = useRef<HTMLDivElement>(null)
-    const filtroRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
 
     const effectiveStages = isAdmin ? STAGES : STAGES.filter(s => !s.adminOnly)
@@ -156,41 +146,18 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
         activeBtn?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Cerrar el panel de asesores al hacer click afuera
-    useEffect(() => {
-        const handleClickAfuera = (e: MouseEvent) => {
-            if (filtroRef.current && !filtroRef.current.contains(e.target as Node)) {
-                setMostrarFiltroAsesores(false)
-            }
-        }
-        if (mostrarFiltroAsesores) {
-            document.addEventListener('mousedown', handleClickAfuera)
-        }
-        return () => document.removeEventListener('mousedown', handleClickAfuera)
-    }, [mostrarFiltroAsesores])
-
     // --- Computed / Memoized ---
 
-    // Leads filtrados por búsqueda de texto y por asesor (ambos filtros simultáneos)
     const filteredLeads = useMemo(() => {
-        let resultado = leads
-
-        if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase().trim()
-            resultado = resultado.filter(l =>
-                `${l.first_name} ${l.last_name}`.toLowerCase().includes(q) ||
-                l.phone.includes(q) ||
-                (l.dni && l.dni.includes(q)) ||
-                (l.email && l.email.toLowerCase().includes(q))
-            )
-        }
-
-        if (isAdmin && asesoresFiltrados !== null) {
-            resultado = resultado.filter(l => asesoresFiltrados.includes(l.assigned_to ?? ''))
-        }
-
-        return resultado
-    }, [leads, searchQuery, isAdmin, asesoresFiltrados])
+        if (!searchQuery.trim()) return leads
+        const q = searchQuery.toLowerCase().trim()
+        return leads.filter(l =>
+            `${l.first_name} ${l.last_name}`.toLowerCase().includes(q) ||
+            l.phone.includes(q) ||
+            (l.dni && l.dni.includes(q)) ||
+            (l.email && l.email.toLowerCase().includes(q))
+        )
+    }, [leads, searchQuery])
 
     const pendingDocsCount = useMemo(() =>
         leads.filter(l => l.documentacion_pendiente).length
@@ -272,25 +239,6 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
     const toggleGroup = (groupId: string) => {
         setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
     }
-
-    const toggleAsesor = (id: string) => {
-        setAsesoresFiltrados(prev => {
-            if (prev === null) {
-                // Estaba en "todos": pasar a selección de todos menos el clickeado
-                const siguiente = (asesores ?? []).map(a => a.id).filter(aid => aid !== id)
-                return siguiente.length === 0 ? null : siguiente
-            }
-            if (prev.includes(id)) {
-                const siguiente = prev.filter(aid => aid !== id)
-                return siguiente.length === 0 ? null : siguiente
-            }
-            const siguiente = [...prev, id]
-            return siguiente.length === (asesores ?? []).length ? null : siguiente
-        })
-    }
-
-    const seleccionarTodos = () => setAsesoresFiltrados(null)
-    const limpiarFiltro = () => setAsesoresFiltrados(null)
 
     const formatLastRefresh = useCallback((date: Date): string => {
         const diff = Math.floor((Date.now() - date.getTime()) / 1000)
@@ -450,104 +398,6 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                             </button>
                         )}
 
-                        {/* Filtro por asesor — solo admin */}
-                        {isAdmin && asesores && asesores.length > 0 && (
-                            <div className="relative" ref={filtroRef}>
-                                <button
-                                    onClick={() => setMostrarFiltroAsesores(prev => !prev)}
-                                    className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all border ${
-                                        asesoresFiltrados !== null
-                                            ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-600 dark:text-indigo-400'
-                                            : 'glass-button border-transparent text-slate-600 dark:text-slate-400'
-                                    }`}
-                                >
-                                    <Users className="w-4 h-4" />
-                                    <span className="hidden sm:inline">
-                                        {asesoresFiltrados === null
-                                            ? 'Todos los asesores'
-                                            : `${asesoresFiltrados.length} asesor${asesoresFiltrados.length !== 1 ? 'es' : ''}`
-                                        }
-                                    </span>
-                                    {asesoresFiltrados !== null && (
-                                        <span className="flex items-center justify-center w-4 h-4 rounded-full bg-indigo-600 text-white text-[9px] font-black">
-                                            {asesoresFiltrados.length}
-                                        </span>
-                                    )}
-                                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${mostrarFiltroAsesores ? 'rotate-180' : ''}`} />
-                                </button>
-
-                                {mostrarFiltroAsesores && (
-                                    <div className="absolute left-0 top-full mt-1.5 z-50 min-w-[220px] rounded-2xl backdrop-blur-xl bg-white/95 dark:bg-slate-800/95 border border-white/40 dark:border-white/10 shadow-2xl animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
-                                        {/* Header del panel */}
-                                        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-white/10">
-                                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Filtrar por asesor</p>
-                                            {asesoresFiltrados !== null && (
-                                                <button
-                                                    onClick={limpiarFiltro}
-                                                    className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline"
-                                                >
-                                                    Ver todos
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        {/* Opción "Todos" */}
-                                        <button
-                                            onClick={seleccionarTodos}
-                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-[12px] font-bold transition-colors ${
-                                                asesoresFiltrados === null
-                                                    ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                                                    : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
-                                            }`}
-                                        >
-                                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                                                asesoresFiltrados === null
-                                                    ? 'bg-blue-600 border-blue-600'
-                                                    : 'border-slate-300 dark:border-white/20'
-                                            }`}>
-                                                {asesoresFiltrados === null && <CheckCircle2 className="w-3 h-3 text-white" />}
-                                            </div>
-                                            Todos los asesores
-                                            <span className="ml-auto text-[10px] text-slate-400 font-normal">{leads.length} leads</span>
-                                        </button>
-
-                                        <div className="h-px bg-slate-100 dark:bg-white/5 mx-3" />
-
-                                        {/* Lista de asesores */}
-                                        <div className="max-h-[240px] overflow-y-auto custom-scrollbar py-1">
-                                            {asesores.map(asesor => {
-                                                const estaSeleccionado = asesoresFiltrados === null || asesoresFiltrados.includes(asesor.id)
-                                                const cantidadLeads = leads.filter(l => l.assigned_to === asesor.id).length
-                                                return (
-                                                    <button
-                                                        key={asesor.id}
-                                                        onClick={() => toggleAsesor(asesor.id)}
-                                                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-[12px] font-semibold transition-colors ${
-                                                            estaSeleccionado
-                                                                ? 'text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-white/5'
-                                                                : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5'
-                                                        }`}
-                                                    >
-                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all shrink-0 ${
-                                                            estaSeleccionado
-                                                                ? 'bg-indigo-600 border-indigo-600'
-                                                                : 'border-slate-300 dark:border-white/20'
-                                                        }`}>
-                                                            {estaSeleccionado && <CheckCircle2 className="w-3 h-3 text-white" />}
-                                                        </div>
-                                                        <span className="truncate">{asesor.nombre}</span>
-                                                        <span className={`ml-auto text-[10px] shrink-0 ${estaSeleccionado ? 'text-slate-400' : 'text-slate-300'}`}>
-                                                            {cantidadLeads}
-                                                        </span>
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
                         {/* Badge docs pendientes */}
                         {pendingDocsCount > 0 && (
                             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
@@ -651,20 +501,6 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
                                 {filteredLeads.length} resultado{filteredLeads.length !== 1 ? 's' : ''} para &quot;{searchQuery}&quot;
                             </span>
-                        </div>
-                    )}
-                    {isAdmin && asesoresFiltrados !== null && (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20">
-                            <Users className="w-3 h-3 text-indigo-500" />
-                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
-                                Viendo {asesoresFiltrados.length} asesor{asesoresFiltrados.length !== 1 ? 'es' : ''}
-                            </span>
-                            <button
-                                onClick={limpiarFiltro}
-                                className="ml-1 text-indigo-400 hover:text-indigo-600 transition-colors"
-                            >
-                                <X className="w-3 h-3" />
-                            </button>
                         </div>
                     )}
                     {isSelectionMode && selectedLeads.length > 0 && (

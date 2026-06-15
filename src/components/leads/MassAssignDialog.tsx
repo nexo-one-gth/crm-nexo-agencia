@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { SimpleModal } from '@/components/ui/SimpleModal'
 import { Users, Loader2, UserCheck } from 'lucide-react'
-import { getAdvisors } from '@/app/actions/advisor-actions'
+import { getAsesoresParaAsignar } from '@/app/actions/advisor-actions'
 import { assignLeadsToAdvisor } from '@/app/actions/lead-actions'
 import { toast } from 'sonner'
 
@@ -22,7 +22,7 @@ export const MassAssignDialog = ({ isOpen, onClose, leadIds, onSuccess }: MassAs
 
     const fetchAdvisors = async () => {
         setIsLoading(true)
-        const res = await getAdvisors()
+        const res = await getAsesoresParaAsignar()
         if (res.success) {
             setAdvisors((res.data || []) as { id: string, first_name: string, last_name: string, email: string, [key: string]: unknown }[])
         }
