@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { LeadCard } from './LeadCard'
 import {
     MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus,
@@ -107,7 +107,9 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
     const [showSortMenu, setShowSortMenu] = useState(false)
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
     const [isCompactView, setIsCompactView] = useState(false)
+    const [, setTick] = useState(0)
     const desktopBoardRef = useRef<HTMLDivElement>(null)
+    const tabsRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
 
     const effectiveStages = isAdmin ? STAGES : STAGES.filter(s => !s.adminOnly)
@@ -117,7 +119,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
         : 0
     const [activeTab, setActiveTab] = useState(initialTabIndex >= 0 ? initialTabIndex : 0)
 
-    // P6 — Supabase Realtime: actualización automática cuando cambian leads
+    // Actualización automática cuando cambian leads via Realtime
     useEffect(() => {
         const supabase = createClient()
         const channel = supabase
@@ -129,6 +131,19 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
             .subscribe()
         return () => { supabase.removeChannel(channel) }
     }, [router])
+
+    // Re-render cada 60s para actualizar el label "hace X min" del timestamp
+    useEffect(() => {
+        const id = setInterval(() => setTick(t => t + 1), 60_000)
+        return () => clearInterval(id)
+    }, [])
+
+    // Scroll al tab activo en mobile cuando se llega desde un link con ?stage=
+    useEffect(() => {
+        if (!initialStage || !tabsRef.current) return
+        const activeBtn = tabsRef.current.querySelector(`[data-tab="${initialTabIndex}"]`)
+        activeBtn?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // --- Computed / Memoized ---
 
@@ -225,13 +240,12 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
         setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
     }
 
-    const formatLastRefresh = (date: Date): string => {
-        // eslint-disable-next-line react-hooks/purity
+    const formatLastRefresh = useCallback((date: Date): string => {
         const diff = Math.floor((Date.now() - date.getTime()) / 1000)
         if (diff < 60) return 'Ahora'
         if (diff < 3600) return `hace ${Math.floor(diff / 60)}m`
         return `hace ${Math.floor(diff / 3600)}h`
-    }
+    }, [])
 
     // --- Render helpers ---
 
@@ -515,6 +529,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                 {/* Wrapper relativo para el fade visual — no toca el scroll */}
                 <div className="relative w-full">
                     <div
+                        ref={tabsRef}
                         className="flex overflow-x-auto hide-scrollbar gap-1 pb-1"
                         style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
                     >
@@ -524,6 +539,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
                             return (
                                 <button
                                     key={stage.name}
+                                    data-tab={idx}
                                     onClick={() => setActiveTab(idx)}
                                     className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 border-b-2 ${isActive
                                         ? `${stage.bgColor} ${stage.tabColor} ${stage.color}`

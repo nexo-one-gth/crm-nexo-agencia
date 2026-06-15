@@ -1,7 +1,6 @@
 // Deployment trigger
 import { createClient } from '@/lib/supabase/server'
-import { Card } from '@/components/ui/card'
-import { Users, Target, MessageCircle, BarChart3, Clock, FileText, ChevronRight } from 'lucide-react'
+import { Users, Target, MessageCircle, BarChart3, Clock, FileText, ChevronRight, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 
 export default async function DashboardPage() {
@@ -23,85 +22,80 @@ export default async function DashboardPage() {
     )
   }
 
-  // Fetch metrics for the advisor
-  const { count: totalLeads } = await supabase
-    .from('leads')
-    .select('*', { count: 'exact', head: true })
-    .eq('assigned_to', user.id)
-    .is('deleted_at', null)
+  // Paralelizar todas las queries independientes (BUG 2)
+  const [
+    { data: stageData },
+    { data: recentActivities },
+    { data: activeCampaigns },
+    { count: altasActivas },
+  ] = await Promise.all([
+    supabase
+      .from('leads')
+      .select('pipeline_stages(name), valor_forecast')
+      .eq('assigned_to', user.id)
+      .is('deleted_at', null),
+    supabase
+      .from('activities')
+      .select(`id, created_at, leads(first_name, last_name)`)
+      .eq('created_by', user.id)
+      .eq('type', 'whatsapp_sent')
+      .order('created_at', { ascending: false })
+      .limit(5),
+    supabase
+      .from('campaigns')
+      .select('*')
+      .eq('advisor_id', user.id)
+      .eq('active', true)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('altas')
+      .select('*', { count: 'exact', head: true })
+      .eq('asesor_id', user.id)
+      .in('estado', ['en_proceso', 'enviada', 'observada']),
+  ])
 
-  const { data: stageData } = await supabase
-    .from('leads')
-    .select('pipeline_stages(name)')
-    .eq('assigned_to', user.id)
-    .is('deleted_at', null)
-
+  // Derivar totalLeads y stageCounts de una sola query (BUG 3)
+  type StageRow = { pipeline_stages: { name: string } | { name: string }[] | null; valor_forecast?: number | null; [key: string]: unknown }
+  const totalLeads = stageData?.length ?? 0
   const stageCounts: Record<string, number> = {}
-  stageData?.forEach((lead: { pipeline_stages: { name: string } | { name: string }[] | null, [key: string]: unknown }) => {
+  const FORECAST_STAGES = new Set(['Interesado', 'Cotizado', 'Alta en Proceso'])
+  let totalForecast = 0
+
+  stageData?.forEach((lead: StageRow) => {
     let stageName = 'Otro'
     if (lead.pipeline_stages) {
       if (Array.isArray(lead.pipeline_stages)) {
         stageName = lead.pipeline_stages[0]?.name || 'Otro'
       } else {
-        stageName = lead.pipeline_stages.name || 'Otro'
+        stageName = (lead.pipeline_stages as { name: string }).name || 'Otro'
       }
     }
     stageCounts[stageName] = (stageCounts[stageName] || 0) + 1
+    if (FORECAST_STAGES.has(stageName) && typeof lead.valor_forecast === 'number') {
+      totalForecast += lead.valor_forecast
+    }
   })
 
-  const { data: recentActivities } = await supabase
-    .from('activities')
-    .select(`
-      id,
-      created_at,
-      leads (
-        first_name,
-        last_name
-      )
-    `)
-    .eq('created_by', user.id)
-    .eq('type', 'whatsapp_sent')
-    .order('created_at', { ascending: false })
-    .limit(5)
-
-  // Fetch campaigns to get lead balance
-  let remainingLeads = 0
-  let totalCampaignLeads = 0
-  let deliveredLeads = 0
-
-  if (user) {
-    const { data: campaigns } = await supabase
-      .from('campaigns')
-      .select('*')
-      .eq('advisor_id', user.id)
-      .eq('active', true)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    if (campaigns && campaigns.length > 0) {
-      const campaign = campaigns[0]
-      const { count } = await supabase
-        .from('leads')
-        .select('*', { count: 'exact', head: true })
-        .eq('campaign_id', campaign.id)
-
-      deliveredLeads = count || 0
-      totalCampaignLeads = campaign.total_leads
-      remainingLeads = Math.max(0, totalCampaignLeads - deliveredLeads)
-    }
+  // Sumar saldo de todas las campañas activas (MEJORA 2)
+  let remainingLeads: number | null = null
+  if (activeCampaigns && activeCampaigns.length > 0) {
+    const campaignIds = activeCampaigns.map((c: { id: string }) => c.id)
+    const { count: deliveredTotal } = await supabase
+      .from('leads')
+      .select('*', { count: 'exact', head: true })
+      .in('campaign_id', campaignIds)
+    const totalAllocated = activeCampaigns.reduce((sum: number, c: { total_leads?: number }) => sum + (c.total_leads ?? 0), 0)
+    remainingLeads = Math.max(0, totalAllocated - (deliveredTotal ?? 0))
   }
 
-  const { count: altasActivas } = await supabase
-    .from('altas')
-    .select('*', { count: 'exact', head: true })
-    .eq('asesor_id', user.id)
-    .in('estado', ['en_proceso', 'enviada', 'observada'])
+  const forecastFormatted = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(totalForecast)
 
   const stats = [
-    { name: 'Mis Leads', value: totalLeads || 0, icon: Users, color: 'from-blue-600 to-blue-400' },
-    { name: 'Leads Restantes', value: remainingLeads, icon: Target, color: 'from-rose-600 to-rose-400' },
+    { name: 'Mis Leads', value: totalLeads, icon: Users, color: 'from-blue-600 to-blue-400' },
+    { name: 'Leads Restantes', value: remainingLeads !== null ? remainingLeads : '—', icon: Target, color: 'from-rose-600 to-rose-400' },
     { name: 'Interesados', value: stageCounts['Interesado'] || 0, icon: Target, color: 'from-purple-600 to-purple-400' },
     { name: 'Pendientes', value: stageCounts['Pendiente'] || 0, icon: Clock, color: 'from-amber-600 to-amber-400' },
+    { name: 'Forecast Pipeline', value: totalForecast > 0 ? forecastFormatted : '—', icon: TrendingUp, color: 'from-emerald-600 to-teal-400' },
   ]
 
   return (
@@ -121,16 +115,16 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Stats — 2 columns on mobile, 4 on desktop */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+      {/* Stats — 2 columnas en mobile, 5 en desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         {stats.map((stat) => (
-          <div key={stat.name} className="glass-card p-4 sm:p-6 rounded-2xl flex items-center justify-between">
+          <div key={stat.name} className="glass-card p-4 sm:p-5 rounded-2xl flex items-center justify-between">
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">{stat.name}</p>
-              <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">{stat.value}</p>
+              <p className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">{stat.name}</p>
+              <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mt-1 truncate">{stat.value}</p>
             </div>
-            <div className={`p-2.5 sm:p-3 rounded-xl bg-gradient-to-br ${stat.color} shadow-lg shrink-0`}>
-              <stat.icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            <div className={`p-2.5 rounded-xl bg-gradient-to-br ${stat.color} shadow-lg shrink-0 ml-2`}>
+              <stat.icon className="w-5 h-5 text-white" />
             </div>
           </div>
         ))}
@@ -162,10 +156,13 @@ export default async function DashboardPage() {
           </h3>
           <div className="space-y-3 sm:space-y-4">
             {[
-              { name: 'Pendiente', gradient: 'from-blue-600 to-blue-400' },
-              { name: 'Contactado', gradient: 'from-green-600 to-green-400' },
-              { name: 'Interesado', gradient: 'from-purple-600 to-purple-400' },
-              { name: 'No Interesado', gradient: 'from-slate-600 to-slate-400' },
+              { name: 'Pendiente',       gradient: 'from-blue-600 to-blue-400' },
+              { name: 'Contactado',      gradient: 'from-green-600 to-green-400' },
+              { name: 'Interesado',      gradient: 'from-purple-600 to-purple-400' },
+              { name: 'Cotizado',        gradient: 'from-amber-600 to-amber-400' },
+              { name: 'Alta en Proceso', gradient: 'from-emerald-600 to-teal-400' },
+              { name: 'Ganado',          gradient: 'from-green-600 to-green-400' },
+              { name: 'No Interesado',   gradient: 'from-slate-600 to-slate-400' },
             ].map(({ name, gradient }) => {
               const count = stageCounts[name] || 0
               const percentage = (totalLeads || 0) > 0 ? (count / (totalLeads || 1)) * 100 : 0

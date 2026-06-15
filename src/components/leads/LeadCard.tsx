@@ -1,6 +1,6 @@
 'use client'
 
-import { Phone, MessageCircle, ChevronDown, MessageSquare, Edit, CheckCircle2, Clock, Users, ExternalLink, Trash2, Calculator } from 'lucide-react'
+import { Phone, MessageCircle, ChevronDown, MessageSquare, Edit, CheckCircle2, Clock, Users, ExternalLink, Trash2, Calculator, X } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -308,10 +308,11 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                                 <div className="relative">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setIsDiscardOpen(prev => !prev) }}
-                                        className="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-500 text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1"
+                                        aria-label="Marcar como No Interesado"
                                         title="No interesado"
+                                        className="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-500 text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1"
                                     >
-                                        ✕
+                                        <X className="w-3 h-3" />
                                     </button>
                                     {isDiscardOpen && (
                                         <div className="absolute bottom-full right-0 mb-1 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">

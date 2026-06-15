@@ -156,7 +156,7 @@ export async function getAllLeads() {
         .eq('id', user.id)
         .single()
 
-    const query = supabase
+    let query = supabase
         .from('leads')
         .select(`
             *,
@@ -166,9 +166,9 @@ export async function getAllLeads() {
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
-    // If not admin, only show assigned leads
+    // Si no es admin, filtrar solo los leads asignados al asesor
     if (profile?.role !== 'admin') {
-        query.eq('assigned_to', user.id)
+        query = query.eq('assigned_to', user.id)
     }
 
     const { data, error } = await query
