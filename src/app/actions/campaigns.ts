@@ -60,7 +60,7 @@ export async function getCampaigns() {
         .eq('id', user.id)
         .single()
 
-    const isAdmin = profile?.role === 'admin'
+    const isAdmin = profile?.role === 'admin' || profile?.role === 'admin_principal'
 
     // Una sola query: campañas + asesor + count de leads por campaña via subquery RPC
     // Usamos execute_sql-style via from() con el count embebido en el select

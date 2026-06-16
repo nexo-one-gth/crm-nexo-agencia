@@ -23,7 +23,7 @@ export default async function FunnelPage({
             .eq('id', user.id)
             .single()
 
-        isAdmin = profile?.role === 'admin'
+        isAdmin = profile?.role === 'admin' || profile?.role === 'admin_principal'
         userProfile = profile ? {
             full_name: `${profile.first_name} ${profile.last_name}`,
             whatsapp_name: profile.first_name

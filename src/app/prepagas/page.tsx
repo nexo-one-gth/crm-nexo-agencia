@@ -14,7 +14,7 @@ export default async function PrepagasPage() {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  const esAdmin = profile?.role === 'admin'
+  const esAdmin = profile?.role === 'admin' || profile?.role === 'admin_principal'
 
   const prepagas = await getPrepagas()
 

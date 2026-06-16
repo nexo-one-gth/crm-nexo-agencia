@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertAdmin } from '@/lib/supabase/assert-admin'
+import { assertAdmin, isAdminRole } from '@/lib/supabase/assert-admin'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 
@@ -24,7 +24,7 @@ export async function getPrepagas() {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  const esAdmin = profile?.role === 'admin'
+  const esAdmin = isAdminRole(profile?.role)
 
   let query = supabase
     .from('prepagas')
@@ -365,7 +365,7 @@ export async function getAltas() {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  const esAdmin = profile?.role === 'admin'
+  const esAdmin = isAdminRole(profile?.role)
 
   let query = supabase
     .from('altas')
@@ -492,7 +492,7 @@ export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, obser
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  const esAdmin = profile?.role === 'admin'
+  const esAdmin = isAdminRole(profile?.role)
 
   let query = supabase.from('altas').update(updateData).eq('id', id)
   if (!esAdmin) query = query.eq('asesor_id', user.id)

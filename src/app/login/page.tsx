@@ -37,7 +37,7 @@ export default function LoginPage() {
 
                     toast.success('¡Bienvenido!')
 
-                    if (profile?.role === 'admin') {
+                    if (profile?.role === 'admin' || profile?.role === 'admin_principal') {
                         router.push('/admin')
                     } else {
                         router.push('/')

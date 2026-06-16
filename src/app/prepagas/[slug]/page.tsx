@@ -21,7 +21,7 @@ export default async function PrepagaDetallePage({ params }: { params: Promise<{
   if (!prepaga) notFound()
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'admin_principal'
 
   const planesActivos = (prepaga.prepaga_planes ?? []).filter((p: { activo: boolean }) => p.activo)
 
