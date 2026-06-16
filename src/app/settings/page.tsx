@@ -19,7 +19,9 @@ export default async function SettingsPage() {
         .eq('id', user.id)
         .single()
 
-    const isAdmin = profile?.role?.toLowerCase() === 'admin'
+    const userRole = profile?.role?.toLowerCase() ?? ''
+    const isAdmin = userRole === 'admin' || userRole === 'admin_principal'
+    const isAdminPrincipal = userRole === 'admin_principal'
     const fullName = profile
         ? [profile.first_name, profile.last_name].filter(Boolean).join(' ')
         : null
@@ -46,13 +48,15 @@ export default async function SettingsPage() {
                     <ProfileCard fullName={fullName || null} email={user.email || null} />
                 </section>
 
-                {/* Gestión de usuarios — solo admin */}
+                {/* Gestión de usuarios — admin y admin_principal */}
                 {isAdmin && (
                     <section className="space-y-6">
                         <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-white/10">
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Gestión de Usuarios</h2>
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                                {isAdminPrincipal ? 'Gestión de Usuarios' : 'Mi Equipo'}
+                            </h2>
                         </div>
-                        <AdminAdvisorView />
+                        <AdminAdvisorView isAdminPrincipal={isAdminPrincipal} currentUserId={user.id} />
                     </section>
                 )}
             </div>

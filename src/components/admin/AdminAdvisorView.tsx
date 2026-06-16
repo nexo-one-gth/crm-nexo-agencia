@@ -42,7 +42,12 @@ type Prepaga = { id: string; nombre: string; slug: string }
 const profileName = (p: Profile) => `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim()
 const initials = (p: Profile) => `${p.first_name?.[0] ?? ''}${p.last_name?.[0] ?? ''}`.toUpperCase()
 
-export const AdminAdvisorView = () => {
+type AdminAdvisorViewProps = {
+    isAdminPrincipal: boolean
+    currentUserId: string
+}
+
+export const AdminAdvisorView = ({ isAdminPrincipal, currentUserId }: AdminAdvisorViewProps) => {
     const [admins, setAdmins] = useState<Profile[]>([])
     const [asesores, setAsesores] = useState<Profile[]>([])
     const [assignments, setAssignments] = useState<Assignment[]>([])
@@ -231,25 +236,31 @@ export const AdminAdvisorView = () => {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">Equipo de Asesores</h2>
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                        {isAdminPrincipal ? 'Equipo de Asesores' : 'Mi Equipo'}
+                    </h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Administrá la estructura del equipo y las prepagas asignadas
+                        {isAdminPrincipal
+                            ? 'Administrá la estructura del equipo y las prepagas asignadas'
+                            : 'Gestioná tus asesores y sus prepagas asignadas'}
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    <Link
-                        href="/admin/campaigns"
-                        className="px-4 py-2 glass-button rounded-xl text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-300"
-                    >
-                        <Target className="w-4 h-4" />
-                        Campañas
-                    </Link>
+                    {isAdminPrincipal && (
+                        <Link
+                            href="/admin/campaigns"
+                            className="px-4 py-2 glass-button rounded-xl text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-300"
+                        >
+                            <Target className="w-4 h-4" />
+                            Campañas
+                        </Link>
+                    )}
                     <button
                         onClick={() => setIsCreateModalOpen(true)}
                         className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-bold flex items-center gap-2 hover:scale-105 transition-all shadow-lg"
                     >
                         <UserPlus className="w-4 h-4" />
-                        Nuevo Asesor
+                        {isAdminPrincipal ? 'Nuevo Usuario' : 'Nuevo Asesor'}
                     </button>
                 </div>
             </div>
@@ -258,7 +269,8 @@ export const AdminAdvisorView = () => {
                 <div className="flex justify-center py-20">
                     <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
                 </div>
-            ) : (
+            ) : isAdminPrincipal ? (
+                /* ====== VISTA ADMIN PRINCIPAL: todos los grupos ====== */
                 <div className="space-y-4">
 
                     {/* Grupos por admin */}
@@ -277,14 +289,21 @@ export const AdminAdvisorView = () => {
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-slate-900 dark:text-white truncate text-sm">
                                             {profileName(admin)}
+                                            {admin.id === currentUserId && (
+                                                <span className="ml-2 text-[9px] font-black uppercase tracking-widest text-amber-500">(vos)</span>
+                                            )}
                                         </p>
                                         <p className="text-[11px] text-slate-500 truncate flex items-center gap-1">
                                             <Mail className="w-3 h-3 shrink-0" />
                                             {admin.email}
                                         </p>
                                     </div>
-                                    <span className="text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 shrink-0">
-                                        ADMIN
+                                    <span className={`text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                        admin.role === 'admin_principal'
+                                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                                            : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400'
+                                    }`}>
+                                        {admin.role === 'admin_principal' ? 'PRINCIPAL' : 'ADMIN'}
                                     </span>
                                     <button
                                         onClick={() => openDetail(admin)}
@@ -327,7 +346,7 @@ export const AdminAdvisorView = () => {
                                         </div>
                                     ))}
 
-                                    {/* Botón asignar asesor */}
+                                    {/* Botón asignar asesor — solo admin_principal */}
                                     {disponibles.length > 0 && (
                                         <div
                                             className="relative mt-1"
@@ -380,7 +399,7 @@ export const AdminAdvisorView = () => {
                         )
                     })}
 
-                    {/* Sin asignar */}
+                    {/* Sin asignar (solo visible para admin_principal) */}
                     {unassignedAsesores.length > 0 && (
                         <div>
                             <div className="flex items-center gap-2 mb-3 mt-2">
@@ -419,6 +438,36 @@ export const AdminAdvisorView = () => {
                         </div>
                     )}
                 </div>
+            ) : (
+                /* ====== VISTA ADMIN REGULAR: solo su equipo ====== */
+                <div className="space-y-3">
+                    {asesores.length === 0 ? (
+                        <div className="py-16 text-center glass-card rounded-2xl border-dashed">
+                            <Users className="w-10 h-10 mx-auto text-slate-300 mb-3" />
+                            <p className="text-slate-500 text-sm">No tenés asesores asignados aún.</p>
+                            <p className="text-[12px] text-slate-400 mt-1">Creá un asesor con el botón de arriba para empezar.</p>
+                        </div>
+                    ) : (
+                        asesores.map(asesor => (
+                            <button
+                                key={asesor.id}
+                                onClick={() => openDetail(asesor)}
+                                className="w-full glass-card p-3 rounded-xl flex items-center gap-3 text-left hover:border-blue-500/20 hover:bg-blue-500/5 transition-all group"
+                            >
+                                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border border-blue-500/15 flex items-center justify-center shrink-0">
+                                    <span className="text-[11px] font-bold text-blue-400">{initials(asesor)}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                                        {profileName(asesor)}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500 truncate">{asesor.email}</p>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors shrink-0" />
+                            </button>
+                        ))
+                    )}
+                </div>
             )}
 
             {/* ===== PANEL DETALLE ===== */}
@@ -433,11 +482,17 @@ export const AdminAdvisorView = () => {
                         {/* Cabecera */}
                         <div className="flex items-center gap-4">
                             <div className={`w-14 h-14 rounded-full flex items-center justify-center shrink-0 ${
-                                selectedProfile.role === 'admin'
+                                selectedProfile.role === 'admin_principal'
+                                    ? 'bg-gradient-to-br from-amber-900/60 to-orange-900/60 border border-amber-500/20'
+                                    : selectedProfile.role === 'admin'
                                     ? 'bg-gradient-to-br from-purple-900/60 to-indigo-900/60 border border-purple-500/20'
                                     : 'bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border border-blue-500/15'
                             }`}>
-                                <span className={`text-xl font-bold ${selectedProfile.role === 'admin' ? 'text-purple-300' : 'text-blue-400'}`}>
+                                <span className={`text-xl font-bold ${
+                                    selectedProfile.role === 'admin_principal' ? 'text-amber-300'
+                                    : selectedProfile.role === 'admin' ? 'text-purple-300'
+                                    : 'text-blue-400'
+                                }`}>
                                     {initials(selectedProfile)}
                                 </span>
                             </div>
@@ -450,11 +505,15 @@ export const AdminAdvisorView = () => {
                                     {selectedProfile.email}
                                 </p>
                                 <span className={`mt-1 inline-block text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full ${
-                                    selectedProfile.role === 'admin'
+                                    selectedProfile.role === 'admin_principal'
+                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                                        : selectedProfile.role === 'admin'
                                         ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400'
                                         : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400'
                                 }`}>
-                                    {selectedProfile.role}
+                                    {selectedProfile.role === 'admin_principal' ? 'Admin Principal'
+                                        : selectedProfile.role === 'admin' ? 'Admin'
+                                        : 'Asesor'}
                                 </span>
 
                                 {/* Código productor (solo asesores) */}
@@ -641,7 +700,8 @@ export const AdminAdvisorView = () => {
                         <label className="text-xs font-bold uppercase text-slate-500 ml-1">Rol</label>
                         <select name="role" className="w-full px-4 py-2.5 rounded-xl glass-input border border-white/20 appearance-none bg-transparent">
                             <option value="asesor">Asesor de Ventas</option>
-                            <option value="admin">Administrador</option>
+                            {isAdminPrincipal && <option value="admin">Administrador</option>}
+                            {isAdminPrincipal && <option value="admin_principal">Admin Principal</option>}
                         </select>
                     </div>
                     <button

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { assertAdmin } from '@/lib/supabase/assert-admin'
+import { assertAdmin, isAdminRole } from '@/lib/supabase/assert-admin'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 
@@ -53,7 +53,7 @@ export async function updateLeadStage(leadId: string, stageName: string, discard
     // Admins pueden mover cualquier lead; asesores solo los propios
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     let query = supabase.from('leads').update(updateData).eq('id', leadId)
-    if (profile?.role !== 'admin') query = query.eq('assigned_to', user.id)
+    if (!isAdminRole(profile?.role)) query = query.eq('assigned_to', user.id)
 
     const { error } = await query
 
@@ -166,7 +166,7 @@ export async function getAllLeads() {
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
-    if (profile?.role === 'admin') {
+    if (isAdminRole(profile?.role)) {
         // Si el admin tiene asesores asignados, filtrar solo sus leads
         const { data: adminAsesores } = await supabase
             .from('admin_asesores')
@@ -359,7 +359,7 @@ export async function updateLead(data: Record<string, unknown>) {
 
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
     let query = supabase.from('leads').update(updateFields).eq('id', id);
-    if (profile?.role !== 'admin') query = query.eq('assigned_to', user.id);
+    if (!isAdminRole(profile?.role)) query = query.eq('assigned_to', user.id);
 
     const { error } = await query;
     if (error) {

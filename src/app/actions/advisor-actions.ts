@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { assertAdmin } from '@/lib/supabase/assert-admin'
+import { assertAdmin, assertAdminPrincipal } from '@/lib/supabase/assert-admin'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
@@ -11,7 +11,7 @@ const advisorSchema = z.object({
     password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres" }),
     firstName: z.string().min(2, { message: "Nombre muy corto" }),
     lastName: z.string().min(2, { message: "Apellido muy corto" }),
-    role: z.enum(['admin', 'asesor']).default('asesor')
+    role: z.enum(['admin_principal', 'admin', 'asesor']).default('asesor')
 })
 
 export type ActionResponse<T = unknown> = {
@@ -21,9 +21,10 @@ export type ActionResponse<T = unknown> = {
 }
 
 export const createAdvisor = async (formData: z.infer<typeof advisorSchema>): Promise<ActionResponse> => {
-    // 1. Verificar que el caller sea admin
+    // 1. Verificar que el caller sea admin o admin_principal
     const guard = await assertAdmin()
-    if (guard.error) return { success: false, error: guard.error }
+    if (guard.error || !guard.user) return { success: false, error: guard.error ?? 'Error de autenticación' }
+    const callerId = guard.user.id
 
     // 2. Validar datos con Zod
     const validated = advisorSchema.safeParse(formData)
@@ -35,10 +36,26 @@ export const createAdvisor = async (formData: z.infer<typeof advisorSchema>): Pr
     }
 
     const { email, password, firstName, lastName, role } = validated.data
+    const supabase = await createClient()
+
+    // Obtener rol del caller para validar permisos y lógica de auto-asignación
+    const { data: callerProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', callerId)
+        .single()
+
+    const callerRole = callerProfile?.role
+
+    // Solo admin_principal puede crear admins o admin_principal
+    if (role !== 'asesor' && callerRole !== 'admin_principal') {
+        return { success: false, error: 'Solo el admin principal puede crear administradores' }
+    }
+
     const supabaseAdmin = createAdminClient()
 
     try {
-        // 2. Crear usuario en Auth (requiere SERVICE_ROLE_KEY)
+        // Crear usuario en Auth (requiere SERVICE_ROLE_KEY)
         const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password,
@@ -61,7 +78,15 @@ export const createAdvisor = async (formData: z.infer<typeof advisorSchema>): Pr
         // NOTA: No insertamos manualmente en 'profiles' porque el trigger 'on_auth_user_created'
         // definido en la base de datos se encarga de hacerlo automáticamente usando la 'user_metadata'.
 
+        // Si un admin regular crea un asesor, lo auto-asigna a su grupo
+        if (role === 'asesor' && callerRole === 'admin') {
+            await supabase
+                .from('admin_asesores')
+                .insert({ admin_id: callerId, asesor_id: authUser.user.id })
+        }
+
         revalidatePath('/admin/advisors')
+        revalidatePath('/settings')
         return { success: true }
 
     } catch (err: unknown) {
@@ -160,30 +185,67 @@ export type AdminConAsesoresData = {
 
 export const getAdminsConAsesores = async (): Promise<ActionResponse<AdminConAsesoresData>> => {
     const guard = await assertAdmin()
-    if (guard.error) return { success: false, error: guard.error }
+    if (guard.error || !guard.user) return { success: false, error: guard.error ?? 'Error de autenticación' }
+    const callerId = guard.user.id
 
     const supabase = await createClient()
 
-    const [adminsRes, asesoresRes, assignmentsRes] = await Promise.all([
-        supabase.from('profiles').select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor').eq('role', 'admin').order('first_name', { ascending: true }),
-        supabase.from('profiles').select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor').eq('role', 'asesor').order('first_name', { ascending: true }),
-        supabase.from('admin_asesores').select('admin_id, asesor_id')
-    ])
+    const { data: callerProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', callerId)
+        .single()
 
-    if (adminsRes.error || asesoresRes.error) return { success: false, error: 'Error al cargar datos' }
+    const isAdminPrincipal = callerProfile?.role === 'admin_principal'
 
-    return {
-        success: true,
-        data: {
-            admins: (adminsRes.data ?? []) as ProfileData[],
-            asesores: (asesoresRes.data ?? []) as ProfileData[],
-            assignments: assignmentsRes.data ?? []
+    if (isAdminPrincipal) {
+        // Admin principal: ve todos los admins, asesores y asignaciones
+        const [adminsRes, asesoresRes, assignmentsRes] = await Promise.all([
+            supabase.from('profiles').select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor').in('role', ['admin', 'admin_principal']).order('first_name', { ascending: true }),
+            supabase.from('profiles').select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor').eq('role', 'asesor').order('first_name', { ascending: true }),
+            supabase.from('admin_asesores').select('admin_id, asesor_id')
+        ])
+        if (adminsRes.error || asesoresRes.error) return { success: false, error: 'Error al cargar datos' }
+        return {
+            success: true,
+            data: {
+                admins: (adminsRes.data ?? []) as ProfileData[],
+                asesores: (asesoresRes.data ?? []) as ProfileData[],
+                assignments: assignmentsRes.data ?? []
+            }
+        }
+    } else {
+        // Admin regular: solo ve su propio grupo de asesores
+        const assignmentsRes = await supabase
+            .from('admin_asesores')
+            .select('admin_id, asesor_id')
+            .eq('admin_id', callerId)
+
+        const myAsesorIds = (assignmentsRes.data ?? []).map(a => a.asesor_id)
+
+        let asesoresData: ProfileData[] = []
+        if (myAsesorIds.length > 0) {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor')
+                .in('id', myAsesorIds)
+                .order('first_name', { ascending: true })
+            asesoresData = (data ?? []) as ProfileData[]
+        }
+
+        return {
+            success: true,
+            data: {
+                admins: [],
+                asesores: asesoresData,
+                assignments: assignmentsRes.data ?? []
+            }
         }
     }
 }
 
 export const asignarAsesorAAdmin = async (adminId: string, asesorId: string): Promise<ActionResponse> => {
-    const guard = await assertAdmin()
+    const guard = await assertAdminPrincipal()
     if (guard.error) return { success: false, error: guard.error }
 
     const supabase = await createClient()
@@ -197,7 +259,7 @@ export const asignarAsesorAAdmin = async (adminId: string, asesorId: string): Pr
 }
 
 export const desasignarAsesorDeAdmin = async (adminId: string, asesorId: string): Promise<ActionResponse> => {
-    const guard = await assertAdmin()
+    const guard = await assertAdminPrincipal()
     if (guard.error) return { success: false, error: guard.error }
 
     const supabase = await createClient()
