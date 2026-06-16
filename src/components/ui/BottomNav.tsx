@@ -1,6 +1,6 @@
 'use client'
 
-import { Home, BarChart3, Settings, Plus, Building2 } from 'lucide-react'
+import { Home, BarChart3, Settings, Plus, Building2, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -77,10 +77,24 @@ export const BottomNav = () => {
                             {pathname.startsWith('/prepagas') && <div className="w-1 h-1 rounded-full bg-blue-500 mt-0.5" />}
                         </Link>
 
+                        {/* Recursos */}
+                        <Link
+                            href="/recursos"
+                            className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[40px] ${
+                                pathname.startsWith('/recursos')
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-slate-500 dark:text-slate-400 active:scale-95'
+                            }`}
+                        >
+                            <FolderOpen className={`w-5 h-5 ${pathname.startsWith('/recursos') ? 'drop-shadow-[0_0_6px_rgba(59,130,246,0.5)]' : ''}`} />
+                            <span className={`text-[10px] font-bold ${pathname.startsWith('/recursos') ? '' : 'opacity-70'}`}>Recursos</span>
+                            {pathname.startsWith('/recursos') && <div className="w-1 h-1 rounded-full bg-blue-500 mt-0.5" />}
+                        </Link>
+
                         {/* Ajustes */}
                         <Link
                             href="/settings"
-                            className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200 min-w-[48px] ${
+                            className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[40px] ${
                                 pathname === '/settings'
                                     ? 'text-blue-600 dark:text-blue-400'
                                     : 'text-slate-500 dark:text-slate-400 active:scale-95'
