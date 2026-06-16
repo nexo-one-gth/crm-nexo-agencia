@@ -174,7 +174,10 @@ export async function getAllLeads() {
             .eq('admin_id', user.id)
 
         if (adminAsesores && adminAsesores.length > 0) {
-            query = query.in('assigned_to', adminAsesores.map(a => a.asesor_id))
+            // Incluir también los leads sin asignar (Pendiente de Asignación):
+            // .in() no matchea NULL, así que hay que sumarlos explícitamente con .or()
+            const asesorIds = adminAsesores.map(a => a.asesor_id).join(',')
+            query = query.or(`assigned_to.in.(${asesorIds}),assigned_to.is.null`)
         }
         // Si no tiene asesores asignados, ve todos (backward compat)
     } else {
