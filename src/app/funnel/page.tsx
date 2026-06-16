@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 
+export type AdvisorToAdmin = Record<string, { id: string; name: string }>
+
 export default async function FunnelPage({
     searchParams,
 }: {
@@ -14,7 +16,9 @@ export default async function FunnelPage({
     const params = await searchParams
 
     let isAdmin = false
+    let isAdminPrincipal = false
     let userProfile = null
+    let advisorToAdmin: AdvisorToAdmin = {}
 
     if (user) {
         const { data: profile } = await supabase
@@ -24,10 +28,31 @@ export default async function FunnelPage({
             .single()
 
         isAdmin = profile?.role === 'admin' || profile?.role === 'admin_principal'
+        isAdminPrincipal = profile?.role === 'admin_principal'
         userProfile = profile ? {
             full_name: `${profile.first_name} ${profile.last_name}`,
             whatsapp_name: profile.first_name
         } : null
+
+        // Para admin_principal: construir mapa asesor_id → admin
+        if (isAdminPrincipal) {
+            const [assignmentsRes, adminsRes] = await Promise.all([
+                supabase.from('admin_asesores').select('admin_id, asesor_id'),
+                supabase.from('profiles').select('id, first_name, last_name').in('role', ['admin', 'admin_principal'])
+            ])
+
+            const adminMap: Record<string, string> = {}
+            for (const a of adminsRes.data ?? []) {
+                adminMap[a.id] = `${a.first_name ?? ''} ${a.last_name ?? ''}`.trim()
+            }
+
+            for (const assignment of assignmentsRes.data ?? []) {
+                advisorToAdmin[assignment.asesor_id] = {
+                    id: assignment.admin_id,
+                    name: adminMap[assignment.admin_id] ?? 'Sin Admin'
+                }
+            }
+        }
     }
 
     const leads = await getAllLeads()
@@ -59,6 +84,8 @@ export default async function FunnelPage({
             <LeadFunnelBoard
                 initialLeads={leads as any}
                 isAdmin={isAdmin}
+                isAdminPrincipal={isAdminPrincipal}
+                advisorToAdmin={advisorToAdmin}
                 userProfile={userProfile}
                 initialStage={params.stage}
             />

@@ -53,9 +53,13 @@ interface Lead {
     documentacion_pendiente?: string
 }
 
+type AdvisorToAdmin = Record<string, { id: string; name: string }>
+
 interface LeadFunnelBoardProps {
     initialLeads: Lead[]
     isAdmin?: boolean
+    isAdminPrincipal?: boolean
+    advisorToAdmin?: AdvisorToAdmin
     initialStage?: string
     userProfile?: {
         full_name: string | null
@@ -91,7 +95,7 @@ const sortLeads = (leads: Lead[], mode: SortMode): Lead[] => {
     })
 }
 
-export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfile }: LeadFunnelBoardProps) => {
+export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advisorToAdmin, initialStage, userProfile }: LeadFunnelBoardProps) => {
     const leads = initialLeads
     const [isImportOpen, setIsImportOpen] = useState(false)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -249,6 +253,53 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
 
     // --- Render helpers ---
 
+    const renderAdvisorGroup = (advisor: string, advisorLeads: Lead[], groupId: string, compact: boolean, onStageChange?: (s: string) => void, indent = false) => {
+        const isExpanded = expandedGroups[groupId]
+        return (
+            <div key={groupId} className="space-y-2">
+                <button
+                    onClick={() => toggleGroup(groupId)}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all group ${
+                        indent
+                            ? 'bg-white/3 hover:bg-white/8 border-white/8'
+                            : 'bg-white/5 hover:bg-white/10 border-white/10'
+                    }`}
+                >
+                    <div className="flex items-center gap-2">
+                        <div className={`p-1.5 rounded-lg ${advisor === 'Sin Asignar' ? 'bg-slate-500/10' : 'bg-blue-500/10'}`}>
+                            <User className={`w-3.5 h-3.5 ${advisor === 'Sin Asignar' ? 'text-slate-500' : 'text-blue-500'}`} />
+                        </div>
+                        <div className="text-left">
+                            <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{advisor}</p>
+                            <p className="text-[10px] text-slate-500">{advisorLeads.length} lead{advisorLeads.length !== 1 ? 's' : ''}</p>
+                        </div>
+                    </div>
+                    {isExpanded
+                        ? <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />
+                        : <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />
+                    }
+                </button>
+
+                {isExpanded && (
+                    <div className="space-y-3 pl-2 border-l-2 border-white/10 animate-in slide-in-from-top-2 duration-300">
+                        {advisorLeads.map((lead) => (
+                            <LeadCard
+                                key={lead.id}
+                                lead={lead}
+                                isAdmin={isAdmin}
+                                isSelected={selectedLeads.includes(lead.id)}
+                                onSelect={isSelectionMode ? handleSelectLead : undefined}
+                                userProfile={userProfile}
+                                compact={compact}
+                                onStageChange={onStageChange}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+        )
+    }
+
     const renderLeadsByAdvisor = (stageLeads: Lead[], stageName: string, compact = false, onStageChange?: (s: string) => void) => {
         if (stageLeads.length === 0) {
             return (
@@ -279,7 +330,87 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
             )
         }
 
-        // Admin: agrupado por asesor
+        // Admin principal: agrupado por Admin → Asesor → Leads
+        if (isAdminPrincipal && advisorToAdmin && Object.keys(advisorToAdmin).length > 0) {
+            // Agrupar leads por admin_id, luego por asesor
+            const leadsByAdmin: Record<string, { adminName: string; byAdvisor: Record<string, Lead[]> }> = {}
+
+            for (const lead of stageLeads) {
+                const adminInfo = lead.assigned_to ? advisorToAdmin[lead.assigned_to] : null
+                const adminKey = adminInfo?.id ?? '__sin_admin__'
+                const adminName = adminInfo?.name ?? 'Sin Admin asignado'
+                const advisorName = lead.assigned_to_name || 'Sin Asignar'
+
+                if (!leadsByAdmin[adminKey]) {
+                    leadsByAdmin[adminKey] = { adminName, byAdvisor: {} }
+                }
+                if (!leadsByAdmin[adminKey].byAdvisor[advisorName]) {
+                    leadsByAdmin[adminKey].byAdvisor[advisorName] = []
+                }
+                leadsByAdmin[adminKey].byAdvisor[advisorName].push(lead)
+            }
+
+            const adminKeys = Object.keys(leadsByAdmin).sort((a, b) => {
+                if (a === '__sin_admin__') return 1
+                if (b === '__sin_admin__') return -1
+                return leadsByAdmin[a].adminName.localeCompare(leadsByAdmin[b].adminName)
+            })
+
+            return (
+                <div className="space-y-3">
+                    {adminKeys.map(adminKey => {
+                        const { adminName, byAdvisor } = leadsByAdmin[adminKey]
+                        const adminGroupId = `${stageName}-admin-${adminKey}`
+                        const isAdminExpanded = expandedGroups[adminGroupId]
+                        const totalLeads = Object.values(byAdvisor).flat().length
+
+                        const advisorNames = Object.keys(byAdvisor).sort((a, b) => {
+                            if (a === 'Sin Asignar') return 1
+                            if (b === 'Sin Asignar') return -1
+                            return a.localeCompare(b)
+                        })
+
+                        return (
+                            <div key={adminGroupId} className="space-y-2">
+                                {/* Cabecera de Admin */}
+                                <button
+                                    onClick={() => toggleGroup(adminGroupId)}
+                                    className="w-full flex items-center justify-between p-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/15 border border-purple-500/20 transition-all group"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 rounded-lg bg-purple-500/20">
+                                            <UserCheck className="w-3.5 h-3.5 text-purple-400" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-xs font-bold text-purple-300">{adminName}</p>
+                                            <p className="text-[10px] text-slate-400">
+                                                {totalLeads} lead{totalLeads !== 1 ? 's' : ''} · {advisorNames.length} asesor{advisorNames.length !== 1 ? 'es' : ''}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {isAdminExpanded
+                                        ? <ChevronDown className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                                        : <ChevronRight className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                                    }
+                                </button>
+
+                                {isAdminExpanded && (
+                                    <div className="pl-3 border-l-2 border-purple-500/20 space-y-2 animate-in slide-in-from-top-2 duration-300">
+                                        {advisorNames.map(advisorName => {
+                                            const advisorLeads = byAdvisor[advisorName]
+                                            const groupId = `${stageName}-${adminKey}-${advisorName}`
+                                            return renderAdvisorGroup(advisorName, advisorLeads, groupId, compact, onStageChange, true)
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
+                </div>
+            )
+        }
+
+        // Admin regular: agrupado por asesor
         const leadsByAdvisor = stageLeads.reduce((acc, lead) => {
             const key = lead.assigned_to_name || 'Sin Asignar'
             if (!acc[key]) acc[key] = []
@@ -296,49 +427,8 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, initialStage, userProfi
         return (
             <div className="space-y-3">
                 {advisors.map(advisor => {
-                    const advisorLeads = leadsByAdvisor[advisor]
                     const groupId = `${stageName}-${advisor}`
-                    const isExpanded = expandedGroups[groupId]
-
-                    return (
-                        <div key={groupId} className="space-y-2">
-                            <button
-                                onClick={() => toggleGroup(groupId)}
-                                className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all group"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <div className={`p-1.5 rounded-lg ${advisor === 'Sin Asignar' ? 'bg-slate-500/10' : 'bg-blue-500/10'}`}>
-                                        <User className={`w-3.5 h-3.5 ${advisor === 'Sin Asignar' ? 'text-slate-500' : 'text-blue-500'}`} />
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{advisor}</p>
-                                        <p className="text-[10px] text-slate-500">{advisorLeads.length} lead{advisorLeads.length !== 1 ? 's' : ''}</p>
-                                    </div>
-                                </div>
-                                {isExpanded
-                                    ? <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />
-                                    : <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />
-                                }
-                            </button>
-
-                            {isExpanded && (
-                                <div className="space-y-3 pl-2 border-l-2 border-white/10 animate-in slide-in-from-top-2 duration-300">
-                                    {advisorLeads.map((lead) => (
-                                        <LeadCard
-                                            key={lead.id}
-                                            lead={lead}
-                                            isAdmin={isAdmin}
-                                            isSelected={selectedLeads.includes(lead.id)}
-                                            onSelect={isSelectionMode ? handleSelectLead : undefined}
-                                            userProfile={userProfile}
-                                            compact={compact}
-                                            onStageChange={onStageChange}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )
+                    return renderAdvisorGroup(advisor, leadsByAdvisor[advisor], groupId, compact, onStageChange)
                 })}
             </div>
         )
