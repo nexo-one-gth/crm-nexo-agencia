@@ -166,16 +166,17 @@ export async function getAllLeads() {
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
-    if (isAdminRole(profile?.role)) {
-        // Si el admin tiene asesores asignados, filtrar solo sus leads
+    if (profile?.role === 'admin_principal') {
+        // admin_principal ve todos los leads sin filtro adicional
+    } else if (isAdminRole(profile?.role)) {
+        // admin regular: solo los leads de sus asesores asignados
         const { data: adminAsesores } = await supabase
             .from('admin_asesores')
             .select('asesor_id')
             .eq('admin_id', user.id)
 
         if (adminAsesores && adminAsesores.length > 0) {
-            // Incluir también los leads sin asignar (Pendiente de Asignación):
-            // .in() no matchea NULL, así que hay que sumarlos explícitamente con .or()
+            // Incluir también los leads sin asignar (Pendiente de Asignación)
             const asesorIds = adminAsesores.map(a => a.asesor_id).join(',')
             query = query.or(`assigned_to.in.(${asesorIds}),assigned_to.is.null`)
         }
