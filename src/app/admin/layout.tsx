@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { isAdminRole } from '@/lib/supabase/assert-admin'
 import { redirect } from 'next/navigation'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -13,7 +14,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         .eq('id', user.id)
         .single()
 
-    if (profile?.role !== 'admin') redirect('/')
+    if (!isAdminRole(profile?.role)) redirect('/')
 
     return <>{children}</>
 }

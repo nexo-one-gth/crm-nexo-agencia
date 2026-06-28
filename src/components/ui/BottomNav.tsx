@@ -20,7 +20,7 @@ export const BottomNav = () => {
 
     return (
         <>
-            <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden safe-bottom">
+            <nav className="fixed bottom-0 left-0 right-0 z-50 safe-bottom">
                 <div className="backdrop-blur-xl bg-white/10 dark:bg-black/40 border-t border-white/15 dark:border-white/10 px-2 pt-2 pb-1">
                     <div className="flex items-center justify-around">
                         {/* Inicio */}

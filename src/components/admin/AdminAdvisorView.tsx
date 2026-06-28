@@ -10,7 +10,7 @@ import { asignarAsesor, desasignarAsesor } from '@/app/actions/prepaga-actions'
 import { toast } from 'sonner'
 import {
     UserPlus, Loader2, Mail, Target,
-    X, Shield, ChevronRight, Plus, Check, Trash2, ChevronDown, Users, Hash
+    X, Shield, ChevronRight, Plus, Check, Trash2, ChevronDown, Users, Hash, BadgeDollarSign
 } from 'lucide-react'
 import { SimpleModal } from '@/components/ui/SimpleModal'
 import Link from 'next/link'
@@ -246,6 +246,13 @@ export const AdminAdvisorView = ({ isAdminPrincipal, currentUserId }: AdminAdvis
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    <Link
+                        href="/admin/comisiones"
+                        className="px-4 py-2 glass-button rounded-xl text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-300"
+                    >
+                        <BadgeDollarSign className="w-4 h-4" />
+                        Comisiones
+                    </Link>
                     {isAdminPrincipal && (
                         <Link
                             href="/admin/campaigns"

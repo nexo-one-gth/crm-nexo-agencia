@@ -99,7 +99,7 @@ export default async function RootLayout({
             </div>
           </nav>
 
-          <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 pb-24 md:pb-6">
+          <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 pt-4 sm:pt-6 pb-24">
             {children}
           </main>
         </div>

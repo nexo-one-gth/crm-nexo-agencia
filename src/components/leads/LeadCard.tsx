@@ -1,6 +1,6 @@
 'use client'
 
-import { Phone, MessageCircle, ChevronDown, MessageSquare, Edit, CheckCircle2, Clock, Users, ExternalLink, Trash2, Calculator, X } from 'lucide-react'
+import { Phone, MessageCircle, ChevronDown, MessageSquare, Edit, CheckCircle2, AlertCircle, Users, ExternalLink, Trash2, Calculator, X } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -8,6 +8,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { updateLeadStage, deleteLeads } from '@/app/actions/lead-actions'
 import { calculateLeadCompletion, getCompletionColor } from '@/lib/utils/lead-completion'
+import { getStageColor } from '@/lib/stage-colors'
 
 import { toast } from 'sonner'
 
@@ -72,14 +73,16 @@ const DISCARD_REASONS = [
 
 const FLAME_COLORS = ['text-slate-400', 'text-yellow-500', 'text-orange-500']
 
-// Etapas del embudo de medicina prepaga
+// Etapas del embudo de medicina prepaga — el color de cada una viene de stage-colors.ts
+// (única fuente de verdad, compartida con LeadFunnelBoard) para que la banda lateral,
+// el header de columna y este botón de avance siempre coincidan.
 const PIPELINE_STAGES = [
-    { key: 'Pendiente', label: 'Lead', color: 'bg-slate-400 dark:bg-slate-500' },
-    { key: 'Contactado', label: 'Contactado', color: 'bg-blue-500' },
-    { key: 'Interesado', label: 'Interesado', color: 'bg-purple-500' },
-    { key: 'Cotizado', label: 'Cotizado', color: 'bg-amber-500' },
-    { key: 'Alta en Proceso', label: 'Alta', color: 'bg-emerald-500' },
-    { key: 'Ganado', label: 'Ganado', color: 'bg-green-500' },
+    { key: 'Pendiente', label: 'Lead', color: getStageColor('Pendiente').solid },
+    { key: 'Contactado', label: 'Contactado', color: getStageColor('Contactado').solid },
+    { key: 'Interesado', label: 'Interesado', color: getStageColor('Interesado').solid },
+    { key: 'Cotizado', label: 'Cotizado', color: getStageColor('Cotizado').solid },
+    { key: 'Alta en Proceso', label: 'Alta', color: getStageColor('Alta en Proceso').solid },
+    { key: 'Ganado', label: 'Ganado', color: getStageColor('Ganado').solid },
 ] as const
 
 const formatCurrency = (value?: number) => {
@@ -94,6 +97,8 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
     const [isDiscardOpen, setIsDiscardOpen] = useState(false)
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false)
+    const [isUpdatingStage, setIsUpdatingStage] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
     const discardRef = useRef<HTMLDivElement>(null)
     const router = useRouter()
 
@@ -118,6 +123,8 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
     }
 
     const handleStageUpdate = async (newStageName: string, discardReason?: string) => {
+        if (isUpdatingStage) return // evita doble-click accidental disparando dos cambios de etapa
+        setIsUpdatingStage(true)
         const result = await updateLeadStage(lead.id, newStageName, discardReason)
         if (result.success) {
             const msg = discardReason
@@ -129,6 +136,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
         } else {
             toast.error('Error al actualizar la etapa: ' + result.error)
         }
+        setIsUpdatingStage(false)
     }
 
     const handleDiscard = (reason: string) => {
@@ -142,65 +150,53 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
     }
 
     const handleDeleteConfirm = async () => {
+        setIsDeleting(true)
         const result = await deleteLeads([lead.id])
         if (result.success) {
             toast.success('Lead eliminado correctamente')
             router.refresh()
         } else {
             toast.error('Error al eliminar lead: ' + result.error)
+            setIsDeleting(false)
         }
     }
 
     const completion = calculateLeadCompletion(lead)
     const completionStyle = getCompletionColor(completion)
 
-    const getStageStyle = (stage: string) => {
-        switch (stage) {
-            case 'Pendiente':
-            case 'Pendiente de Asignación':
-                return 'from-blue-600 to-blue-400'
-            case 'Contactado':
-                return 'from-amber-500 to-yellow-400'
-            case 'Interesado':
-                return 'from-indigo-600 to-blue-500'
-            case 'Cotizado':
-                return 'from-orange-600 to-orange-400'
-            case 'Alta en Proceso':
-                return 'from-purple-600 to-pink-500'
-            case 'Ganado':
-                return 'from-green-600 to-emerald-400'
-            case 'No Interesado':
-                return 'from-slate-600 to-slate-400'
-            default:
-                return 'from-slate-600 to-slate-400'
-        }
-    }
+    const stageGradient = getStageColor(lead.stage_name).gradient
 
-    const getUrgencySignal = (created_at: string) => {
+    const getUrgencySignal = (created_at: string, stageName: string) => {
         const days = Math.floor((Date.now() - new Date(created_at).getTime()) / (1000 * 60 * 60 * 24))
+        // "Sin contacto" solo es una alarma real mientras el lead sigue en Pendiente.
+        // Una vez que avanzó de etapa, ya sabemos que fue contactado: mostrar la antigüedad, no una falsa urgencia.
+        const isUncontacted = stageName === 'Pendiente' || stageName === 'Pendiente de Asignación'
         if (days === 0) return { text: 'Ingresó hoy', color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' }
+        if (!isUncontacted) return { text: `Ingresó hace ${days} día${days === 1 ? '' : 's'}`, color: 'text-slate-500 bg-slate-500/10 border-slate-500/20' }
         if (days === 1) return { text: 'Sin contacto: 1 día', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20' }
         if (days <= 3) return { text: `Sin contacto: ${days} días`, color: 'text-amber-600 bg-amber-500/10 border-amber-500/20' }
         return { text: `Sin contacto: ${days} días`, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20' }
     }
 
+    const urgency = getUrgencySignal(lead.created_at, lead.stage_name)
+
     return (
         <>
             <div
                 onClick={() => onSelect && onSelect(lead.id)}
-                className={`glass-card overflow-hidden rounded-2xl hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group shadow-sm flex bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-white/5 ${onSelect ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-blue-500/50' : ''}`}
+                className={`glass-card overflow-hidden rounded-2xl hover:shadow-xl hover:scale-[1.01] transition-all duration-300 group shadow-sm flex bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-white/5 ${onSelect ? 'cursor-pointer' : ''} ${isSelected ? 'ring-2 ring-blue-500/50' : interestLevel === 2 ? 'ring-1 ring-orange-400/50' : ''}`}
             >
                 {/* === BANDA DE COLOR LATERAL === */}
-                <div className={`w-1.5 shrink-0 bg-gradient-to-b ${getStageStyle(lead.stage_name)} opacity-80`} />
+                <div className={`w-1.5 shrink-0 bg-gradient-to-b ${stageGradient} opacity-80`} />
 
-                {/* === CONTENIDO PRINCIPAL COMPACTO === */}
-                <div className={`flex-1 flex flex-col gap-2 min-w-0 ${compact ? 'p-2' : 'p-2.5'}`}>
+                {/* === CONTENIDO PRINCIPAL === */}
+                <div className={`flex-1 flex flex-col min-w-0 ${compact ? 'gap-2 p-2.5' : 'gap-3 p-4'}`}>
 
-                    {/* Fila 1: Header denso */}
+                    {/* Fila 1: Header — el nombre es el ancla visual principal, la urgencia va al lado para escaneo en <2s */}
                     <div className="flex justify-between items-start">
-                        <div className="flex flex-col min-w-0 pr-2">
-                            <div className="flex items-center gap-2 mb-0.5">
-                                <h4 className="text-sm font-black tracking-tight text-slate-800 dark:text-slate-100 truncate" title={`${lead.first_name} ${lead.last_name !== '.' ? lead.last_name : ''}`}>
+                        <div className="flex flex-col min-w-0 pr-2 gap-1">
+                            <div className="flex items-center gap-2">
+                                <h4 className="text-[15px] font-extrabold tracking-tight text-slate-800 dark:text-slate-100 truncate" title={`${lead.first_name} ${lead.last_name !== '.' ? lead.last_name : ''}`}>
                                     {lead.first_name} {lead.last_name !== '.' ? lead.last_name : ''}
                                 </h4>
                                 {lead.cantidad_integrantes && lead.cantidad_integrantes > 1 && (
@@ -210,12 +206,10 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                                     </div>
                                 )}
                             </div>
-                            <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
-                                <span className="font-medium truncate">{lead.edades ? `Edades: ${lead.edades}` : 'Sin edades'}</span>
-                                <span>•</span>
-                                <span className="shrink-0 flex items-center gap-0.5">
-                                    <Clock className="w-2.5 h-2.5" />
-                                    {formatDistanceToNow(new Date(lead.created_at), { addSuffix: true, locale: es }).replace('hace ', '')}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 truncate">{lead.edades ? `Edades: ${lead.edades}` : 'Sin edades'}</span>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${urgency.color}`}>
+                                    {urgency.text}
                                 </span>
                             </div>
                         </div>
@@ -227,7 +221,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                                     e.stopPropagation()
                                     setIsEditOpen(true)
                                 }}
-                                className="w-6 h-6 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-all text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400"
+                                className="w-7 h-7 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-all text-slate-300 dark:text-slate-600 hover:text-blue-500 dark:hover:text-blue-400"
                                 title="Editar"
                             >
                                 <Edit className="w-3.5 h-3.5" />
@@ -235,7 +229,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                             {isAdmin && (
                                 <button
                                     onClick={handleDelete}
-                                    className="w-6 h-6 rounded-md hover:bg-rose-100 dark:hover:bg-rose-500/20 flex items-center justify-center transition-all text-slate-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400"
+                                    className="w-7 h-7 rounded-md hover:bg-rose-100 dark:hover:bg-rose-500/20 flex items-center justify-center transition-all text-slate-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400"
                                     title="Eliminar"
                                 >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -250,20 +244,23 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                     </div>
 
                     {/* Fila 2: Badges (Interés, Origen, Asesor) — ocultos en vista compacta */}
-                    <div className={`flex flex-wrap items-center gap-1.5 ${compact ? 'hidden' : ''}`}>
-                        <div className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 flex items-center gap-1 max-w-[120px] truncate">
-                            <div className={`w-1.5 h-1.5 rounded-full bg-gradient-to-br ${getStageStyle(lead.stage_name)}`} />
+                    <div className={`flex flex-wrap items-center gap-2 ${compact ? 'hidden' : ''}`}>
+                        <div className="px-2 py-1 rounded-md text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 flex items-center gap-1 max-w-[120px] truncate">
+                            <div className={`w-1.5 h-1.5 rounded-full bg-gradient-to-br ${stageGradient}`} />
                             <span className="truncate">{lead.plan || 'Sin especificar'}</span>
                             {interestLevel > 0 && <span className={`${FLAME_COLORS[interestLevel]} text-[10px]`}>🔥</span>}
                         </div>
 
-                        <div className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-white/5 truncate max-w-[90px]">
+                        <div className="px-2 py-1 rounded-md text-[10px] font-semibold bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-100 dark:border-white/5 truncate max-w-[90px]">
                             {lead.source || 'Ads'}
                         </div>
 
-                        <div className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border truncate max-w-[90px] ${lead.assigned_to_name === 'No asignado' ? 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20' : 'bg-slate-50 text-slate-600 border-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-white/5'}`}>
-                            {lead.assigned_to_name || 'Sin asignar'}
-                        </div>
+                        {/* Motivo de descarte: sin esto, "No Interesado" no dice por qué se perdió el lead */}
+                        {lead.stage_name === 'No Interesado' && lead.discard_reason && (
+                            <div className="px-2 py-1 rounded-md text-[10px] font-semibold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 truncate max-w-[140px]">
+                                {lead.discard_reason}
+                            </div>
+                        )}
                     </div>
 
                     {/* Fila 3: Avance de etapa */}
@@ -273,11 +270,12 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                         const prevStage = currentIdx > 0 ? PIPELINE_STAGES[currentIdx - 1] : null
                         const isAltaNext = nextStage?.key === 'Alta en Proceso'
                         return (
-                            <div className="flex items-center gap-1.5 mt-1 pt-2 border-t border-slate-100 dark:border-white/5" ref={discardRef}>
+                            <div className="flex items-center gap-2 pt-2.5 border-t border-slate-100 dark:border-white/5" ref={discardRef}>
                                 {prevStage && (
                                     <button
                                         onClick={(e) => { e.stopPropagation(); handleStageUpdate(prevStage.key) }}
-                                        className="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1"
+                                        disabled={isUpdatingStage}
+                                        className="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50 disabled:pointer-events-none"
                                         title={`Volver a ${prevStage.label}`}
                                     >
                                         <ChevronDown className="w-3 h-3 rotate-90" />
@@ -288,7 +286,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                                         <Link
                                             href={`/leads/${lead.id}?tab=quote`}
                                             onClick={(e) => e.stopPropagation()}
-                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm ${nextStage.color}`}
+                                            className={`flex-1 py-2 rounded-xl text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm ${nextStage.color}`}
                                             title="Iniciar Alta desde cotización"
                                         >
                                             <ChevronDown className="w-3 h-3 -rotate-90" />
@@ -297,7 +295,8 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                                     ) : (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleStageUpdate(nextStage.key) }}
-                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm ${nextStage.color}`}
+                                            disabled={isUpdatingStage}
+                                            className={`flex-1 py-2 rounded-xl text-[10px] font-bold text-white flex items-center justify-center gap-1 transition-all active:scale-95 shadow-sm disabled:opacity-50 disabled:pointer-events-none ${nextStage.color}`}
                                             title={`Avanzar a ${nextStage.label}`}
                                         >
                                             <ChevronDown className="w-3 h-3 -rotate-90" />
@@ -308,9 +307,10 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                                 <div className="relative">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setIsDiscardOpen(prev => !prev) }}
+                                        disabled={isUpdatingStage}
                                         aria-label="Marcar como No Interesado"
                                         title="No interesado"
-                                        className="py-1.5 px-2 rounded-lg bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-500 text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1"
+                                        className="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-500 text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50 disabled:pointer-events-none"
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
@@ -333,34 +333,25 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                         )
                     })()}
 
-                    {/* Fila 4: Urgencia + Controles */}
+                    {/* Fila 4: Controles — la urgencia ya se ve en la Fila 1, el score de completitud
+                        se movió al detalle expandido (no aporta a la decisión "a quién contactar" a simple vista) */}
                     {(() => {
-                        const urgency = getUrgencySignal(lead.created_at)
                         return (
                             <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-1.5">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded) }}
-                                        className="w-5 h-5 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-all text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"
-                                        title={isExpanded ? 'Colapsar' : 'Ver más'}
-                                    >
-                                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${urgency.color}`}>
-                                        {urgency.text}
-                                    </span>
-                                </div>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded) }}
+                                    className="w-7 h-7 rounded-md hover:bg-slate-100 dark:hover:bg-white/10 flex items-center justify-center transition-all text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 shrink-0"
+                                    title={isExpanded ? 'Colapsar' : 'Ver más'}
+                                >
+                                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                </button>
                                 <div className="flex items-center gap-1.5 shrink-0">
-                                    {/* Mini Score */}
-                                    <div className="relative w-6 h-6 mr-1" title={`Completado: ${completion}%`}>
-                                        <svg className="w-full h-full transform -rotate-90">
-                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" fill="transparent" className="text-slate-100 dark:text-white/5" />
-                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" fill="transparent" strokeDasharray={2 * Math.PI * 10} strokeDashoffset={2 * Math.PI * 10 * (1 - completion / 100)} className={`${completionStyle.split(' ')[0]} transition-all duration-1000`} />
-                                        </svg>
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <span className={`text-[8px] font-black ${completionStyle.split(' ')[0]}`}>{completion}</span>
+                                    {/* Alerta puntual solo cuando faltan muchos datos — reemplaza el score permanente */}
+                                    {completion < 30 && (
+                                        <div className="w-6 h-6 flex items-center justify-center" title={`Datos incompletos: ${completion}%`}>
+                                            <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
                                         </div>
-                                    </div>
+                                    )}
                                     <a
                                         href={`tel:${lead.phone}`}
                                         onClick={(e) => e.stopPropagation()}
@@ -414,6 +405,10 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                                     <span className="text-slate-400 uppercase font-black tracking-widest text-[8px]">Fecha Ingreso</span>
                                     <p className="font-semibold text-slate-700 dark:text-slate-200">{new Date(lead.created_at).toLocaleDateString('es-AR')}</p>
                                 </div>
+                                <div className="space-y-0.5">
+                                    <span className="text-slate-400 uppercase font-black tracking-widest text-[8px]">Datos completos</span>
+                                    <p className={`font-semibold ${completionStyle.split(' ')[0]}`}>{completion}%</p>
+                                </div>
                             </div>
 
                             <button
@@ -458,7 +453,7 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                 onConfirm={handleDeleteConfirm}
                 title="Eliminar lead"
                 description={`¿Seguro que querés eliminar a ${lead.first_name}? Esta acción no se puede deshacer.`}
-                confirmLabel="Sí, eliminar"
+                confirmLabel={isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
                 cancelLabel="Cancelar"
             />
         </>

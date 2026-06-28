@@ -4,6 +4,7 @@ import { getPrepagaBySlug, getCredencialesCotizador } from '@/app/actions/prepag
 import Link from 'next/link'
 import { ArrowLeft, ExternalLink, Copy, Info } from 'lucide-react'
 import { CopiarCredencial } from './CopiarCredencial'
+import { BotonCotizarSancor } from '@/components/prepagas/BotonCotizarSancor'
 
 export default async function CotizarPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -26,6 +27,31 @@ export default async function CotizarPage({ params }: { params: Promise<{ slug: 
         <p className="text-slate-500 dark:text-slate-400">
           El cotizador integrado de <strong>{prepaga.nombre}</strong> está en desarrollo. Próximamente disponible.
         </p>
+        <Link href={`/prepagas/${slug}`} className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
+          <ArrowLeft className="w-4 h-4" />
+          Volver al detalle
+        </Link>
+      </div>
+    )
+  }
+
+  // Sancor bloquea el embebido por X-Frame-Options — no se puede usar el
+  // iframe genérico de abajo. En su lugar, abrimos el login en pestaña nueva;
+  // si el asesor tiene instalada la extensión NEXO Autologin Sancor, el
+  // ingreso y la navegación hasta el simulador se completan solas.
+  if (prepaga.slug === 'sancor-salud') {
+    return (
+      <div className="max-w-lg mx-auto text-center py-20 space-y-4">
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center">
+          <ExternalLink className="w-8 h-8 text-white" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Cotizador {prepaga.nombre}</h2>
+        <p className="text-slate-500 dark:text-slate-400">
+          Sancor no permite incrustar su cotizador dentro del CRM. Hacé click para abrirlo en una pestaña nueva.
+        </p>
+        <div className="flex justify-center">
+          <BotonCotizarSancor />
+        </div>
         <Link href={`/prepagas/${slug}`} className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
           <ArrowLeft className="w-4 h-4" />
           Volver al detalle

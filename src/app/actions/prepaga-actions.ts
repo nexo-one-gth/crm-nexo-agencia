@@ -486,13 +486,25 @@ export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, obser
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
 
-  const updateData: Record<string, unknown> = { estado }
-  if (observaciones) updateData.observaciones = observaciones
-  if (estado === 'enviada') updateData.enviada_at = new Date().toISOString()
-
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
   const esAdmin = isAdminRole(profile?.role)
+
+  // Aprobar o rechazar una venta es una decisión del admin, no del asesor que la vendió.
+  if ((estado === 'aprobada' || estado === 'rechazada') && !esAdmin) {
+    return { error: 'Solo un administrador puede aprobar o rechazar una venta' }
+  }
+
+  const { data: altaPrevia } = await supabase
+    .from('altas')
+    .select('estado, lead_id, prepaga_id, asesor_id, tipo_alta')
+    .eq('id', id)
+    .single()
+  if (!altaPrevia) return { error: 'Alta no encontrada' }
+
+  const updateData: Record<string, unknown> = { estado }
+  if (observaciones) updateData.observaciones = observaciones
+  if (estado === 'enviada') updateData.enviada_at = new Date().toISOString()
 
   let query = supabase.from('altas').update(updateData).eq('id', id)
   if (!esAdmin) query = query.eq('asesor_id', user.id)
@@ -500,8 +512,156 @@ export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, obser
   const { error } = await query
   if (error) return { error: error.message }
 
+  // Trazabilidad: todo cambio de estado del alta queda en el historial del lead.
+  const ESTADO_LABELS: Record<string, string> = {
+    en_proceso: 'En proceso', enviada: 'Enviada', observada: 'Observada',
+    aprobada: 'Aprobada', rechazada: 'Rechazada',
+  }
+  await supabase.from('activities').insert({
+    lead_id: altaPrevia.lead_id,
+    created_by: user.id,
+    type: 'alta_estado_cambio',
+    description: `Alta: ${ESTADO_LABELS[altaPrevia.estado] ?? altaPrevia.estado} → ${ESTADO_LABELS[estado] ?? estado}${observaciones ? ` (${observaciones})` : ''}`,
+  })
+
+  // Venta aprobada por el admin: dispara el cálculo automático de comisión.
+  if (estado === 'aprobada') {
+    await generarComisionParaAlta({
+      altaId: id,
+      leadId: altaPrevia.lead_id,
+      prepagaId: altaPrevia.prepaga_id,
+      asesorId: altaPrevia.asesor_id,
+      segmento: altaPrevia.tipo_alta ?? 'particular',
+    })
+  }
+
   revalidatePath('/altas')
   revalidatePath(`/altas/${id}`)
+  revalidatePath(`/leads/${altaPrevia.lead_id}`)
+  revalidatePath('/comisiones')
+  revalidatePath('/admin/comisiones')
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// COMISIONES
+// ---------------------------------------------------------------------------
+
+async function generarComisionParaAlta(params: {
+  altaId: string
+  leadId: string
+  prepagaId: string
+  asesorId: string
+  segmento: string
+}) {
+  const supabase = await createClient()
+
+  // Evitar duplicados si por algún motivo se vuelve a aprobar (no debería pasar, pero es 1:1 con la alta)
+  const { data: existente } = await supabase
+    .from('comisiones').select('id').eq('alta_id', params.altaId).maybeSingle()
+  if (existente) return
+
+  const { data: regla } = await supabase
+    .from('prepaga_comision_reglas')
+    .select('*')
+    .eq('prepaga_id', params.prepagaId)
+    .eq('segmento', params.segmento)
+    .maybeSingle()
+
+  if (!regla) {
+    await supabase.from('activities').insert({
+      lead_id: params.leadId,
+      created_by: params.asesorId,
+      type: 'comision_sin_regla',
+      description: `No se generó comisión: no hay regla configurada para este segmento (${params.segmento}) en esta prepaga`,
+    })
+    return
+  }
+
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('valor_final_socio, sueldo_bruto')
+    .eq('id', params.leadId)
+    .single()
+
+  const montoBase = regla.tipo_base === 'pct_sueldo_bruto'
+    ? lead?.sueldo_bruto
+    : lead?.valor_final_socio
+
+  if (montoBase === null || montoBase === undefined) {
+    const campoFaltante = regla.tipo_base === 'pct_sueldo_bruto' ? 'sueldo bruto' : 'cuota mensual'
+    await supabase.from('activities').insert({
+      lead_id: params.leadId,
+      created_by: params.asesorId,
+      type: 'comision_sin_regla',
+      description: `No se pudo calcular la comisión: falta el dato "${campoFaltante}" en el lead`,
+    })
+    return
+  }
+
+  const montoComision = Number(montoBase) * Number(regla.porcentaje) / 100
+
+  await supabase.from('comisiones').insert({
+    alta_id: params.altaId,
+    lead_id: params.leadId,
+    asesor_id: params.asesorId,
+    prepaga_id: params.prepagaId,
+    segmento: params.segmento,
+    tipo_base: regla.tipo_base,
+    porcentaje: regla.porcentaje,
+    monto_base: montoBase,
+    monto_comision: montoComision,
+  })
+
+  await supabase.from('activities').insert({
+    lead_id: params.leadId,
+    created_by: params.asesorId,
+    type: 'comision_generada',
+    description: `Comisión generada: ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(montoComision)}`,
+  })
+}
+
+export async function getComisionesAdmin() {
+  const guard = await assertAdmin()
+  if (guard.error) return []
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('comisiones')
+    .select(`
+      *,
+      leads(first_name, last_name),
+      prepagas(nombre, slug),
+      profiles!comisiones_asesor_id_fkey(first_name, last_name)
+    `)
+    .order('created_at', { ascending: false })
+  return data ?? []
+}
+
+export async function getMisComisiones() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return []
+  const { data } = await supabase
+    .from('comisiones')
+    .select(`*, leads(first_name, last_name), prepagas(nombre, slug)`)
+    .eq('asesor_id', user.id)
+    .order('created_at', { ascending: false })
+  return data ?? []
+}
+
+export async function marcarComisionLiquidada(id: string) {
+  const guard = await assertAdmin()
+  if (guard.error) return { error: guard.error }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('comisiones')
+    .update({ estado: 'liquidada', liquidada_at: new Date().toISOString(), liquidada_by: guard.user!.id })
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+  revalidatePath('/admin/comisiones')
+  revalidatePath('/comisiones')
   return { success: true }
 }
 

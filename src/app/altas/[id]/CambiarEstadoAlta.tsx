@@ -34,14 +34,21 @@ interface Props {
   altaId: string
   estadoActual: EstadoAlta
   observaciones: string | null
+  isAdmin: boolean
 }
 
-export function CambiarEstadoAlta({ altaId, estadoActual, observaciones }: Props) {
+// Aprobar/rechazar es una decisión de venta que le corresponde al admin, no al
+// asesor que la vendió — el asesor solo puede enviar la documentación.
+const TRANSICIONES_ADMIN_ONLY: EstadoAlta[] = ['aprobada', 'rechazada']
+
+export function CambiarEstadoAlta({ altaId, estadoActual, observaciones, isAdmin }: Props) {
   const [isPending, startTransition] = useTransition()
   const [obs, setObs] = useState(observaciones ?? '')
   const router = useRouter()
 
-  const siguientes = TRANSICIONES[estadoActual] ?? []
+  const siguientes = (TRANSICIONES[estadoActual] ?? []).filter(
+    estado => isAdmin || !TRANSICIONES_ADMIN_ONLY.includes(estado)
+  )
   if (siguientes.length === 0) return null
 
   function handleCambiar(estado: EstadoAlta) {

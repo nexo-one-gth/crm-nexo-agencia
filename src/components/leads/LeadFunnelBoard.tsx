@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation'
 import { deleteLeads } from '@/app/actions/lead-actions'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { getStageColor } from '@/lib/stage-colors'
 
 interface Lead {
     id: string
@@ -67,15 +68,18 @@ interface LeadFunnelBoardProps {
     } | null
 }
 
+// El color de cada etapa viene de stage-colors.ts (única fuente de verdad, compartida
+// con LeadCard) para que el header de columna, la banda lateral de la card y el botón
+// de avance de etapa siempre pinten lo mismo.
 const STAGES = [
-    { name: 'Pendiente de Asignación', icon: UserMinus, color: 'text-slate-500', bgColor: 'bg-slate-500/10', tabColor: 'border-slate-400', adminOnly: true },
-    { name: 'Pendiente', icon: Clock, color: 'text-amber-500', bgColor: 'bg-amber-500/10', tabColor: 'border-amber-400', adminOnly: false },
-    { name: 'Contactado', icon: MessageCircle, color: 'text-blue-500', bgColor: 'bg-blue-500/10', tabColor: 'border-blue-400', adminOnly: false },
-    { name: 'Interesado', icon: CheckCircle2, color: 'text-indigo-500', bgColor: 'bg-indigo-500/10', tabColor: 'border-indigo-400', adminOnly: false },
-    { name: 'Cotizado', icon: DollarSign, color: 'text-emerald-500', bgColor: 'bg-emerald-500/10', tabColor: 'border-emerald-400', adminOnly: false },
-    { name: 'Alta en Proceso', icon: FileUp, color: 'text-purple-500', bgColor: 'bg-purple-500/10', tabColor: 'border-purple-400', adminOnly: false },
-    { name: 'Ganado', icon: UserCheck, color: 'text-green-500', bgColor: 'bg-green-500/10', tabColor: 'border-green-400', adminOnly: false },
-    { name: 'No Interesado', icon: AlertCircle, color: 'text-slate-500', bgColor: 'bg-slate-500/10', tabColor: 'border-slate-400', adminOnly: false },
+    { name: 'Pendiente de Asignación', icon: UserMinus, ...getStageColor('Pendiente de Asignación'), adminOnly: true },
+    { name: 'Pendiente', icon: Clock, ...getStageColor('Pendiente'), adminOnly: false },
+    { name: 'Contactado', icon: MessageCircle, ...getStageColor('Contactado'), adminOnly: false },
+    { name: 'Interesado', icon: CheckCircle2, ...getStageColor('Interesado'), adminOnly: false },
+    { name: 'Cotizado', icon: DollarSign, ...getStageColor('Cotizado'), adminOnly: false },
+    { name: 'Alta en Proceso', icon: FileUp, ...getStageColor('Alta en Proceso'), adminOnly: false },
+    { name: 'Ganado', icon: UserCheck, ...getStageColor('Ganado'), adminOnly: false },
+    { name: 'No Interesado', icon: AlertCircle, ...getStageColor('No Interesado'), adminOnly: false },
 ]
 
 type SortMode = 'recent' | 'name' | 'forecast'
@@ -104,7 +108,9 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
     const [selectedLeads, setSelectedLeads] = useState<string[]>([])
     const [isSelectionMode, setIsSelectionMode] = useState(false)
     const [discardFilter, setDiscardFilter] = useState<string>('all')
-    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+    // Los grupos (Admin/Asesor) arrancan expandidos: con muchos leads cargados,
+    // que todo empiece colapsado los esconde y parece que "no hay leads".
+    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
     const [searchQuery, setSearchQuery] = useState('')
     const [sortMode, setSortMode] = useState<SortMode>('recent')
     const [isRefreshing, setIsRefreshing] = useState(false)
@@ -114,7 +120,10 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
     const [isCompactView, setIsCompactView] = useState(false)
     const [, setTick] = useState(0)
     const desktopBoardRef = useRef<HTMLDivElement>(null)
-    const tabsRef = useRef<HTMLDivElement>(null)
+    const stageMenuRef = useRef<HTMLDivElement>(null)
+    const [isStageMenuOpen, setIsStageMenuOpen] = useState(false)
+    const [canScrollLeft, setCanScrollLeft] = useState(false)
+    const [canScrollRight, setCanScrollRight] = useState(false)
     const router = useRouter()
 
     const effectiveStages = isAdmin ? STAGES : STAGES.filter(s => !s.adminOnly)
@@ -143,12 +152,35 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
         return () => clearInterval(id)
     }, [])
 
-    // Scroll al tab activo en mobile cuando se llega desde un link con ?stage=
+    // Cerrar el selector de etapa al hacer click afuera
     useEffect(() => {
-        if (!initialStage || !tabsRef.current) return
-        const activeBtn = tabsRef.current.querySelector(`[data-tab="${initialTabIndex}"]`)
-        activeBtn?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+        if (!isStageMenuOpen) return
+        const handleClickOutside = (e: MouseEvent) => {
+            if (stageMenuRef.current && !stageMenuRef.current.contains(e.target as Node)) {
+                setIsStageMenuOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [isStageMenuOpen])
+
+    // Detectar si el tablero desktop tiene más columnas para scrollear, para mostrar flechas/fade
+    const checkBoardScroll = useCallback(() => {
+        const el = desktopBoardRef.current
+        if (!el) return
+        setCanScrollLeft(el.scrollLeft > 4)
+        setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 4)
+    }, [])
+
+    useEffect(() => {
+        checkBoardScroll()
+        window.addEventListener('resize', checkBoardScroll)
+        return () => window.removeEventListener('resize', checkBoardScroll)
+    }, [checkBoardScroll, effectiveStages.length, isCompactView])
+
+    const scrollBoardBy = (amount: number) => {
+        desktopBoardRef.current?.scrollBy({ left: amount, behavior: 'smooth' })
+    }
 
     // --- Computed / Memoized ---
 
@@ -241,7 +273,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
     }
 
     const toggleGroup = (groupId: string) => {
-        setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
+        setCollapsedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
     }
 
     const formatLastRefresh = useCallback((date: Date): string => {
@@ -254,7 +286,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
     // --- Render helpers ---
 
     const renderAdvisorGroup = (advisor: string, advisorLeads: Lead[], groupId: string, compact: boolean, onStageChange?: (s: string) => void, indent = false) => {
-        const isExpanded = expandedGroups[groupId]
+        const isExpanded = !collapsedGroups[groupId]
         return (
             <div key={groupId} className="space-y-2">
                 <button
@@ -281,7 +313,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
                 </button>
 
                 {isExpanded && (
-                    <div className="space-y-3 pl-2 border-l-2 border-white/10 animate-in slide-in-from-top-2 duration-300">
+                    <div className="space-y-4 pl-2 border-l-2 border-white/10 animate-in slide-in-from-top-2 duration-300">
                         {advisorLeads.map((lead) => (
                             <LeadCard
                                 key={lead.id}
@@ -313,7 +345,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
 
         if (!isAdmin) {
             return (
-                <div className="space-y-3">
+                <div className="space-y-4">
                     {stageLeads.map((lead) => (
                         <LeadCard
                             key={lead.id}
@@ -361,7 +393,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
                     {adminKeys.map(adminKey => {
                         const { adminName, byAdvisor } = leadsByAdmin[adminKey]
                         const adminGroupId = `${stageName}-admin-${adminKey}`
-                        const isAdminExpanded = expandedGroups[adminGroupId]
+                        const isAdminExpanded = !collapsedGroups[adminGroupId]
                         const totalLeads = Object.values(byAdvisor).flat().length
 
                         const advisorNames = Object.keys(byAdvisor).sort((a, b) => {
@@ -616,41 +648,43 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
 
             {/* ===== TABS MÓVIL (< md) ===== */}
             <div className="md:hidden">
-                {/* Wrapper relativo para el fade visual — no toca el scroll */}
-                <div className="relative w-full">
-                    <div
-                        ref={tabsRef}
-                        className="flex overflow-x-auto hide-scrollbar gap-1 pb-1"
-                        style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+                {/* Selector de etapa: dropdown compacto, no depende del ancho de pantalla */}
+                <div ref={stageMenuRef} className="relative w-full">
+                    <button
+                        onClick={() => setIsStageMenuOpen(o => !o)}
+                        className={`glass-input w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${effectiveStages[activeTab].text}`}
                     >
-                        {effectiveStages.map((stage, idx) => {
-                            const count = getStageLeads(stage.name).length
-                            const isActive = activeTab === idx
-                            return (
-                                <button
-                                    key={stage.name}
-                                    data-tab={idx}
-                                    onClick={() => setActiveTab(idx)}
-                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all shrink-0 border-b-2 ${isActive
-                                        ? `${stage.bgColor} ${stage.tabColor} ${stage.color}`
-                                        : 'bg-white/5 border-transparent text-slate-500 dark:text-slate-400'
-                                        }`}
-                                >
-                                    <stage.icon className="w-3.5 h-3.5" />
-                                    <span className="max-w-[80px] truncate">{stage.name}</span>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-black/10 dark:bg-white/10' : 'bg-black/5 dark:bg-white/5'}`}>
-                                        {count}
-                                    </span>
-                                </button>
-                            )
-                        })}
-                        <div className="shrink-0 w-10" />
-                    </div>
-                    {/* Fade derecho usando la variable CSS de fondo — compatible con dark/light */}
-                    <div
-                        className="pointer-events-none absolute right-0 top-0 bottom-1"
-                        style={{ width: 48, background: 'linear-gradient(to left, var(--background) 30%, transparent 100%)' }}
-                    />
+                        <span className="flex items-center gap-2 min-w-0">
+                            {(() => { const Icon = effectiveStages[activeTab].icon; return <Icon className="w-4 h-4 shrink-0" /> })()}
+                            <span className="truncate">{effectiveStages[activeTab].name}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/10 dark:bg-white/10 shrink-0">
+                                {getStageLeads(effectiveStages[activeTab].name).length}
+                            </span>
+                        </span>
+                        <ChevronDown className={`w-4 h-4 shrink-0 text-slate-500 transition-transform ${isStageMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isStageMenuOpen && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 z-30 glass-card rounded-xl overflow-hidden py-1 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                            {effectiveStages.map((stage, idx) => {
+                                const count = getStageLeads(stage.name).length
+                                const isActive = activeTab === idx
+                                return (
+                                    <button
+                                        key={stage.name}
+                                        onClick={() => { setActiveTab(idx); setIsStageMenuOpen(false) }}
+                                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold transition-colors ${isActive ? `${stage.bg} ${stage.text}` : 'text-slate-600 dark:text-slate-300 hover:bg-white/5'}`}
+                                    >
+                                        <stage.icon className="w-4 h-4 shrink-0" />
+                                        <span className="flex-1 text-left truncate">{stage.name}</span>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? 'bg-black/10 dark:bg-white/10' : 'bg-black/5 dark:bg-white/5'}`}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    )}
                 </div>
 
                 <div className="mt-3">
@@ -673,7 +707,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
                                                 {stageLeads.length > 0 && stageLeads.every(l => selectedLeads.includes(l.id)) ? 'Quitar todos' : 'Todos'}
                                             </button>
                                         )}
-                                        <span className={`text-sm font-bold ${stage.color}`}>{stageLeads.length} leads</span>
+                                        <span className={`text-sm font-bold ${stage.text}`}>{stageLeads.length} leads</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {stage.name === 'No Interesado' && isAdmin && (
@@ -706,21 +740,23 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
                 </div>
             </div>
 
-            {/* ===== COLUMNAS DESKTOP (>= md) — scroll horizontal cuando 8 columnas superan el viewport ===== */}
-            <div
-                ref={desktopBoardRef}
-                className="hidden md:flex gap-4 h-[calc(100vh-300px)] overflow-x-auto overflow-y-hidden custom-scrollbar pb-2"
-                style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x proximity' } as React.CSSProperties}
-            >
-                {effectiveStages.map((stage) => {
-                    const stageLeads = getStageLeads(stage.name)
+            {/* ===== COLUMNAS DESKTOP (>= md) — columnas flexibles, scroll horizontal si no entran todas ===== */}
+            <div className="hidden md:block relative">
+                <div
+                    ref={desktopBoardRef}
+                    onScroll={checkBoardScroll}
+                    className="flex gap-4 h-[calc(100vh-300px)] overflow-x-auto overflow-y-hidden custom-scrollbar pb-2"
+                    style={{ WebkitOverflowScrolling: 'touch', scrollSnapType: 'x proximity' } as React.CSSProperties}
+                >
+                    {effectiveStages.map((stage) => {
+                        const stageLeads = getStageLeads(stage.name)
 
-                    return (
-                        <div key={stage.name} data-stage={stage.name} className={`${isCompactView ? 'w-[160px]' : 'w-[220px]'} shrink-0 flex flex-col h-full transition-all duration-200`} style={{ scrollSnapAlign: 'start' }}>
+                        return (
+                            <div key={stage.name} data-stage={stage.name} className={`flex-1 ${isCompactView ? 'basis-[230px] min-w-[210px] max-w-[260px]' : 'basis-[270px] min-w-[240px] max-w-[320px]'} flex flex-col h-full transition-all duration-200`} style={{ scrollSnapAlign: 'start' }}>
                             {/* Column header */}
-                            <div className={`p-3 rounded-xl mb-3 flex items-center justify-between ${stage.bgColor} border border-white/10 shrink-0`}>
+                            <div className={`p-3.5 rounded-2xl mb-4 flex items-center justify-between ${stage.bg} border border-white/10 shrink-0`}>
                                 <div className="flex items-center gap-2">
-                                    <stage.icon className={`w-4 h-4 ${stage.color}`} />
+                                    <stage.icon className={`w-4 h-4 ${stage.text}`} />
                                     <h3 className="font-bold text-slate-900 dark:text-white text-xs leading-tight">{stage.name}</h3>
                                 </div>
                                 <div className="flex items-center gap-1.5">
@@ -767,6 +803,39 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
                         </div>
                     )
                 })}
+                </div>
+
+                {/* Fades + flechas: avisan que hay más columnas para scrollear */}
+                {canScrollLeft && (
+                    <>
+                        <div
+                            className="pointer-events-none absolute left-0 top-0 bottom-2 w-12 z-10"
+                            style={{ background: 'linear-gradient(to right, var(--background) 30%, transparent 100%)' }}
+                        />
+                        <button
+                            onClick={() => scrollBoardBy(-300)}
+                            aria-label="Ver columnas anteriores"
+                            className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full glass-button flex items-center justify-center hover:scale-105 transition-all shadow-lg"
+                        >
+                            <ChevronRight className="w-4 h-4 rotate-180 text-slate-600 dark:text-slate-300" />
+                        </button>
+                    </>
+                )}
+                {canScrollRight && (
+                    <>
+                        <div
+                            className="pointer-events-none absolute right-0 top-0 bottom-2 w-12 z-10"
+                            style={{ background: 'linear-gradient(to left, var(--background) 30%, transparent 100%)' }}
+                        />
+                        <button
+                            onClick={() => scrollBoardBy(300)}
+                            aria-label="Ver más columnas"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full glass-button flex items-center justify-center hover:scale-105 transition-all shadow-lg"
+                        >
+                            <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                        </button>
+                    </>
+                )}
             </div>
 
             {/* ===== MODALS ===== */}

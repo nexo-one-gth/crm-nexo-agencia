@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { useCotizacion } from '@/hooks/useCotizacion'
 import { iniciarAltaDesdeCotizacion, getCotizadorAcceso } from '@/app/actions/cotizacion-actions'
+import { getPlanesPorPrepaga } from '@/app/actions/prepaga-actions'
+import { CotizadorInternoPremedic } from '@/components/leads/CotizadorInternoPremedic'
 import type { Integrante, LeadCotizacion, PrepagaConCotizador, CotizadorAcceso, PdfListado } from '@/types/cotizacion'
 
 interface PanelCotizacionProps {
@@ -279,6 +281,7 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
   const [iniciandoAlta, setIniciandoAlta] = useState(false)
   const [accesoCotizador, setAccesoCotizador] = useState<CotizadorAcceso | null>(null)
   const [cargandoAcceso, setCargandoAcceso] = useState(false)
+  const [planesIntegrado, setPlanesIntegrado] = useState<{ id: string; nombre: string }[]>([])
 
   // Solo se renderiza en etapas donde tiene sentido cotizar
   const STAGES_CON_COTIZADOR = ['Contactado', 'Interesado', 'Cotizado']
@@ -307,6 +310,16 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
       if (p) setPrepagaSeleccionada(p)
     }
   }, [cotizacionActiva, prepagasDelAsesor])
+
+  // Fetchear planes cuando la prepaga seleccionada es de tipo integrado
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (prepagaSeleccionada?.tipo_cotizador !== 'integrado') return
+    getPlanesPorPrepaga(prepagaSeleccionada.id).then(data => {
+      setPlanesIntegrado(data.map((p: { id: string; nombre: string }) => ({ id: p.id, nombre: p.nombre })))
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prepagaSeleccionada?.id])
 
   // Limpiar acceso cuando cambia la prepaga; auto-fetch para tipo pdf
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -546,15 +559,17 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
                       )}
 
                       {prepagaSeleccionada.tipo_cotizador === 'integrado' && (
-                        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                          <p className="text-xs font-black uppercase tracking-widest text-amber-600 mb-1">Cotizador Interno</p>
-                          <p className="text-sm text-slate-600 dark:text-slate-400">
-                            Cotizador integrado para {prepagaSeleccionada.nombre} — disponible en Fase 2.
-                          </p>
-                          <p className="text-xs text-amber-600 mt-2 font-bold">
-                            Por ahora podés ingresar los valores manualmente abajo.
-                          </p>
-                        </div>
+                        <CotizadorInternoPremedic
+                          prepagaId={prepagaSeleccionada.id}
+                          planes={planesIntegrado}
+                          integrantes={integrantes}
+                          onResultado={(total, desglose, descuentoAportes, iva) => {
+                            setValorCalculado(total.toString())
+                            setObservaciones(desglose)
+                            if (descuentoAportes !== undefined) setDescuentoAportes(descuentoAportes.toString())
+                            if (iva !== undefined) setIva(iva.toString())
+                          }}
+                        />
                       )}
 
                       <hr className="border-white/10" />

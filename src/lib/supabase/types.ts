@@ -389,6 +389,96 @@ export type Database = {
           },
         ]
       }
+      comisiones: {
+        Row: {
+          alta_id: string
+          asesor_id: string
+          created_at: string
+          estado: string
+          id: string
+          lead_id: string
+          liquidada_at: string | null
+          liquidada_by: string | null
+          monto_base: number
+          monto_comision: number
+          notas: string | null
+          porcentaje: number
+          prepaga_id: string
+          segmento: string
+          tipo_base: string
+        }
+        Insert: {
+          alta_id: string
+          asesor_id: string
+          created_at?: string
+          estado?: string
+          id?: string
+          lead_id: string
+          liquidada_at?: string | null
+          liquidada_by?: string | null
+          monto_base: number
+          monto_comision: number
+          notas?: string | null
+          porcentaje: number
+          prepaga_id: string
+          segmento: string
+          tipo_base: string
+        }
+        Update: {
+          alta_id?: string
+          asesor_id?: string
+          created_at?: string
+          estado?: string
+          id?: string
+          lead_id?: string
+          liquidada_at?: string | null
+          liquidada_by?: string | null
+          monto_base?: number
+          monto_comision?: number
+          notas?: string | null
+          porcentaje?: number
+          prepaga_id?: string
+          segmento?: string
+          tipo_base?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comisiones_alta_id_fkey"
+            columns: ["alta_id"]
+            isOneToOne: true
+            referencedRelation: "altas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comisiones_asesor_id_fkey"
+            columns: ["asesor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comisiones_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comisiones_liquidada_by_fkey"
+            columns: ["liquidada_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comisiones_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       configuracion_global: {
         Row: {
           clave: string
@@ -707,6 +797,7 @@ export type Database = {
           plan: string | null
           prepaga_id: string | null
           source: string | null
+          sueldo_bruto: number | null
           valor_final_socio: number | null
           valor_forecast: number | null
           valor_plan: number | null
@@ -748,6 +839,7 @@ export type Database = {
           plan?: string | null
           prepaga_id?: string | null
           source?: string | null
+          sueldo_bruto?: number | null
           valor_final_socio?: number | null
           valor_forecast?: number | null
           valor_plan?: number | null
@@ -789,6 +881,7 @@ export type Database = {
           plan?: string | null
           prepaga_id?: string | null
           source?: string | null
+          sueldo_bruto?: number | null
           valor_final_socio?: number | null
           valor_forecast?: number | null
           valor_plan?: number | null
@@ -909,6 +1002,47 @@ export type Database = {
           },
         ]
       }
+      prepaga_comision_reglas: {
+        Row: {
+          created_at: string
+          id: string
+          notas: string | null
+          porcentaje: number
+          prepaga_id: string
+          segmento: string
+          tipo_base: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notas?: string | null
+          porcentaje: number
+          prepaga_id: string
+          segmento: string
+          tipo_base: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notas?: string | null
+          porcentaje?: number
+          prepaga_id?: string
+          segmento?: string
+          tipo_base?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prepaga_comision_reglas_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prepaga_credenciales: {
         Row: {
           created_at: string | null
@@ -1017,6 +1151,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "prepaga_planes_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prepaga_tarifas: {
+        Row: {
+          composicion: string
+          created_at: string
+          edad_titular_max: number | null
+          edad_titular_min: number | null
+          id: string
+          modalidad: string
+          plan_id: string
+          precio: number
+          prepaga_id: string
+          vigencia_desde: string
+          vigencia_hasta: string | null
+          zona: string
+        }
+        Insert: {
+          composicion: string
+          created_at?: string
+          edad_titular_max?: number | null
+          edad_titular_min?: number | null
+          id?: string
+          modalidad: string
+          plan_id: string
+          precio: number
+          prepaga_id: string
+          vigencia_desde?: string
+          vigencia_hasta?: string | null
+          zona: string
+        }
+        Update: {
+          composicion?: string
+          created_at?: string
+          edad_titular_max?: number | null
+          edad_titular_min?: number | null
+          id?: string
+          modalidad?: string
+          plan_id?: string
+          precio?: number
+          prepaga_id?: string
+          vigencia_desde?: string
+          vigencia_hasta?: string | null
+          zona?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prepaga_tarifas_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "prepaga_planes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prepaga_tarifas_prepaga_id_fkey"
             columns: ["prepaga_id"]
             isOneToOne: false
             referencedRelation: "prepagas"
@@ -1188,6 +1382,7 @@ export type Database = {
     }
     Functions: {
       auth_is_admin: { Args: never; Returns: boolean }
+      auth_is_admin_principal: { Args: never; Returns: boolean }
     }
     Enums: {
       user_role: "admin" | "supervisor" | "sales_executive" | "asesor"

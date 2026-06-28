@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
+import { isAdminRole } from '@/lib/supabase/assert-admin'
 import { redirect, notFound } from 'next/navigation'
 import { getAltaById } from '@/app/actions/prepaga-actions'
 import Link from 'next/link'
-import { ArrowLeft, Phone, User } from 'lucide-react'
+import { ArrowLeft, Phone, User, BadgeDollarSign } from 'lucide-react'
 import { ChecklistProgress } from '@/components/prepagas/ChecklistProgress'
 import { ChecklistInteractivo } from './ChecklistInteractivo'
 import { CambiarEstadoAlta } from './CambiarEstadoAlta'
@@ -30,6 +31,15 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
 
   const alta = await getAltaById(id)
   if (!alta) notFound()
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const esAdmin = isAdminRole(profile?.role)
+
+  const { data: comision } = await supabase
+    .from('comisiones')
+    .select('monto_comision, estado')
+    .eq('alta_id', id)
+    .maybeSingle()
 
   const items = (alta.alta_items ?? []) as {
     id: string
@@ -140,11 +150,23 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
         </section>
       )}
 
+      {/* Comisión generada (solo si la alta ya fue aprobada) */}
+      {comision && (
+        <section className="bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-200 dark:border-emerald-500/20 p-5 flex items-center gap-3">
+          <BadgeDollarSign className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+              Comisión {comision.estado === 'liquidada' ? 'liquidada' : 'generada'}: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(comision.monto_comision)}
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* Checklist interactivo */}
       <ChecklistInteractivo altaId={alta.id} items={items} />
 
       {/* Cambiar estado */}
-      <CambiarEstadoAlta altaId={alta.id} estadoActual={alta.estado as 'en_proceso' | 'enviada' | 'observada' | 'aprobada' | 'rechazada'} observaciones={alta.observaciones} />
+      <CambiarEstadoAlta altaId={alta.id} estadoActual={alta.estado as 'en_proceso' | 'enviada' | 'observada' | 'aprobada' | 'rechazada'} observaciones={alta.observaciones} isAdmin={esAdmin} />
     </div>
   )
 }

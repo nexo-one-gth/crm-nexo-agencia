@@ -4,12 +4,14 @@ import { useState } from 'react'
 import {
     Phone, Mail, MapPin, User, Calendar, Clock, CheckCircle2,
     AlertCircle, DollarSign, MessageCircle, FileText, Activity as ActivityIcon,
-    ChevronRight, ArrowLeft, Send, History, UserCheck, Flame, CreditCard, Briefcase, Users, Edit, Calculator
+    ChevronRight, ArrowLeft, Send, History, UserCheck, Flame, CreditCard, Briefcase, Users, Edit, Calculator,
+    Sparkles, ArrowRightLeft, BadgeDollarSign
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Link from 'next/link'
 import { calculateLeadCompletion, getCompletionColor } from '@/lib/utils/lead-completion'
+import { getStageColor } from '@/lib/stage-colors'
 import { LeadEditModal } from '@/components/leads/LeadEditModal'
 import { PanelCotizacion } from '@/components/leads/PanelCotizacion'
 
@@ -37,27 +39,18 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
     const [isEditOpen, setIsEditOpen] = useState(false)
     const completion = calculateLeadCompletion(lead)
 
-    const getStageStyle = (stage: string) => {
-        switch (stage) {
-            case 'Pendiente':
-            case 'Pendiente de Asignación':
-                return 'from-blue-600 to-blue-400 text-white'
-            case 'Contactado':
-                return 'from-amber-500 to-yellow-400 text-white'
-            case 'Interesado':
-                return 'from-indigo-600 to-blue-500 text-white'
-            case 'Cotizado':
-                return 'from-orange-600 to-orange-400 text-white'
-            case 'Alta en Proceso':
-                return 'from-purple-600 to-pink-500 text-white'
-            case 'Ganado':
-                return 'from-green-600 to-emerald-400 text-white'
-            case 'No Interesado':
-                return 'from-slate-600 to-slate-400 text-white'
-            default:
-                return 'from-slate-600 to-slate-400 text-white'
-        }
+    const ACTIVITY_STYLES: Record<string, { icon: typeof MessageCircle; classes: string; label: string }> = {
+        comment: { icon: MessageCircle, classes: 'bg-blue-500/10 text-blue-500', label: 'Comentario' },
+        whatsapp_sent: { icon: ActivityIcon, classes: 'bg-green-500/10 text-green-500', label: 'WhatsApp enviado' },
+        lead_created: { icon: Sparkles, classes: 'bg-sky-500/10 text-sky-500', label: 'Ingreso del lead' },
+        stage_change: { icon: ArrowRightLeft, classes: 'bg-purple-500/10 text-purple-500', label: 'Cambio de etapa' },
+        cotizacion_generada: { icon: BadgeDollarSign, classes: 'bg-amber-500/10 text-amber-500', label: 'Cotización' },
     }
+    const getActivityStyle = (type: string | null) => ACTIVITY_STYLES[type ?? ''] ?? { icon: FileText, classes: 'bg-slate-200 text-slate-500', label: 'Acción registrada por el sistema' }
+
+    // Mismo mapa de colores que LeadCard/LeadFunnelBoard (lib/stage-colors.ts) —
+    // antes este componente tenía su propia paleta y desentonaba con el resto.
+    const getStageStyle = (stage: string) => `${getStageColor(stage).gradient} text-white`
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -318,20 +311,18 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                             {activeTab === 'history' && (
                                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8">
                                     <div className="flex flex-col gap-6">
-                                        {activities.length > 0 ? activities.map((activity, idx) => (
+                                        {activities.length > 0 ? activities.map((activity, idx) => {
+                                            const style = getActivityStyle(activity.type)
+                                            const Icon = style.icon
+                                            return (
                                             <div key={activity.id} className="relative flex gap-6">
                                                 {/* Line connection */}
                                                 {idx !== activities.length - 1 && (
                                                     <div className="absolute top-10 left-5 w-0.5 h-full bg-slate-200 dark:bg-white/5" />
                                                 )}
 
-                                                <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center z-10 ${activity.type === 'comment' ? 'bg-blue-500/10 text-blue-500' :
-                                                    activity.type === 'whatsapp_sent' ? 'bg-green-500/10 text-green-500' :
-                                                        'bg-slate-200 text-slate-500'
-                                                    }`}>
-                                                    {activity.type === 'comment' ? <MessageCircle className="w-5 h-5" /> :
-                                                        activity.type === 'whatsapp_sent' ? <ActivityIcon className="w-5 h-5" /> :
-                                                            <FileText className="w-5 h-5" />}
+                                                <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center z-10 ${style.classes}`}>
+                                                    <Icon className="w-5 h-5" />
                                                 </div>
 
                                                 <div className="flex-1 pb-8">
@@ -341,10 +332,11 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                                                             {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true, locale: es })}
                                                         </span>
                                                     </div>
-                                                    <p className="text-xs text-slate-400">Acción registrada por el sistema</p>
+                                                    <p className="text-xs text-slate-400">{style.label}</p>
                                                 </div>
                                             </div>
-                                        )) : (
+                                            )
+                                        }) : (
                                             <div className="flex flex-col items-center justify-center h-64 opacity-20">
                                                 <History className="w-16 h-16 mb-4" />
                                                 <p className="font-black text-xl">Sin historial registrado</p>

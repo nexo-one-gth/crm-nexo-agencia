@@ -45,6 +45,14 @@ export async function updateLeadStage(leadId: string, stageName: string, discard
 
     if (!stage) return { success: false, error: 'Etapa no encontrada' }
 
+    // Etapa actual del lead, para poder registrar el cambio en el historial
+    const { data: currentLead } = await supabase
+        .from('leads')
+        .select('pipeline_stages!inner(name)')
+        .eq('id', leadId)
+        .single() as { data: { pipeline_stages: { name: string } } | null }
+    const previousStageName = currentLead?.pipeline_stages?.name
+
     const updateData: Record<string, unknown> = { pipeline_stage_id: stage.id }
     if (discardReason) {
         updateData.discard_reason = discardReason
@@ -60,6 +68,21 @@ export async function updateLeadStage(leadId: string, stageName: string, discard
     if (error) {
         console.error('Error updating stage:', error)
         return { success: false, error: error.message }
+    }
+
+    if (previousStageName && previousStageName !== stageName) {
+        const description = discardReason
+            ? `${previousStageName} → ${stageName} (motivo: ${discardReason})`
+            : `${previousStageName} → ${stageName}`
+        const { error: logError } = await supabase
+            .from('activities')
+            .insert({
+                lead_id: leadId,
+                created_by: user.id,
+                type: 'stage_change',
+                description
+            })
+        if (logError) console.error('Error logging stage_change activity:', logError)
     }
 
     revalidatePath('/funnel')
@@ -123,6 +146,16 @@ export async function createLead(values: { first_name: string; last_name: string
         console.error('Error creating lead:', error)
         return { success: false, error: error.message }
     }
+
+    const { error: logError } = await supabase
+        .from('activities')
+        .insert({
+            lead_id: data.id,
+            created_by: user.id,
+            type: 'lead_created',
+            description: `Lead ingresado vía ${values.source || 'App Asesores'}`
+        })
+    if (logError) console.error('Error logging lead_created activity:', logError)
 
     revalidatePath('/funnel')
     revalidatePath('/')
@@ -332,6 +365,7 @@ export async function updateLead(data: Record<string, unknown>) {
         cuil: z.string().optional(),
         cuit_empleador: z.string().optional(),
         plan: z.string().optional(),
+        prepaga_id: z.string().uuid().optional().nullable(),
         valor_plan: z.number().optional(),
         iva: z.number().optional(),
         descuento_aportes: z.number().optional(),
@@ -346,7 +380,8 @@ export async function updateLead(data: Record<string, unknown>) {
         stage_name: z.string().optional(),
         discard_reason: z.string().optional(),
         numero_tramite: z.string().optional(),
-        documentacion_pendiente: z.string().optional()
+        documentacion_pendiente: z.string().optional(),
+        sueldo_bruto: z.number().optional()
     });
 
     const parseResult = leadUpdateSchema.safeParse(data);

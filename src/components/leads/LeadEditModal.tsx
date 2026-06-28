@@ -1,9 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { z } from 'zod'
 import { updateLead } from '@/app/actions/lead-actions'
+import { getPrepagas, getPlanesPorPrepaga } from '@/app/actions/prepaga-actions'
 import { toast } from 'sonner'
 import { X, User, Phone, Mail, CreditCard, MapPin, Briefcase, DollarSign, FileText, Users, Activity, Tag, CheckCircle2, ChevronDown } from 'lucide-react'
 import { calculateLeadCompletion, getCompletionColor, COMPLETION_FIELDS } from '@/lib/utils/lead-completion'
@@ -22,12 +23,14 @@ const leadUpdateSchema = z.object({
     cuil: z.string().optional(),
     cuit_empleador: z.string().optional(),
     numero_tramite: z.string().optional(),
+    sueldo_bruto: z.coerce.number().optional(),
     address_state: z.string().optional(),
     address_city: z.string().optional(),
     obra_social: z.string().optional(),
     cantidad_integrantes: z.coerce.number().int().optional(),
     edades: z.string().optional(),
     plan: z.string().optional(),
+    prepaga_id: z.string().uuid().optional().nullable(),
     valor_plan: z.coerce.number().optional(),
     iva: z.coerce.number().optional(),
     descuento_aportes: z.coerce.number().optional(),
@@ -109,6 +112,51 @@ const Field = ({
     </div>
 )
 
+// ── Componente Select para dropdowns ─────────────────────────────────────────
+const SelectField = ({
+    label,
+    name,
+    value,
+    onChange,
+    options,
+    placeholder,
+    colSpan = 1,
+    isMissing = false,
+}: {
+    label: string
+    name: string
+    value: string | undefined
+    onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
+    options: { value: string; label: string }[]
+    placeholder?: string
+    colSpan?: 1 | 2
+    isMissing?: boolean
+}) => (
+    <div className={colSpan === 2 ? 'col-span-2' : ''}>
+        <div className="flex justify-between items-center mb-1.5 px-1">
+            <label className={`text-[10px] uppercase font-black tracking-widest ${isMissing ? 'text-amber-500' : 'text-slate-400'}`}>
+                {label}
+            </label>
+            {isMissing && (
+                <span className="text-[9px] font-black text-amber-500 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Sin completar
+                </span>
+            )}
+        </div>
+        <select
+            name={name}
+            value={value ?? ''}
+            onChange={onChange}
+            className={`w-full rounded-xl bg-[#F4F4F2] dark:bg-slate-800/50 border ${isMissing ? 'border-amber-200 bg-amber-50/30' : 'border-white/60'} text-slate-800 dark:text-white text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/50 shadow-sm transition-all`}
+        >
+            {placeholder && <option value="">{placeholder}</option>}
+            {options.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+        </select>
+    </div>
+)
+
 // ── Componente Accordion para secciones ───────────────────────────────────────
 const AccordionSection = ({ title, icon, children, defaultOpen = false }: { title: string, icon?: React.ReactNode, children: React.ReactNode, defaultOpen?: boolean }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen)
@@ -147,12 +195,14 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
         cuil: lead.cuil as string | undefined,
         cuit_empleador: lead.cuit_empleador as string | undefined,
         numero_tramite: lead.numero_tramite as string | undefined,
+        sueldo_bruto: lead.sueldo_bruto as number | undefined,
         address_state: lead.address_state as string | undefined,
         address_city: lead.address_city as string | undefined,
         obra_social: lead.obra_social as string | undefined,
         cantidad_integrantes: lead.cantidad_integrantes as number | undefined,
         edades: lead.edades as string | undefined,
         plan: lead.plan as string | undefined,
+        prepaga_id: lead.prepaga_id as string | undefined,
         valor_plan: lead.valor_plan as number | undefined,
         iva: lead.iva as number | undefined,
         descuento_aportes: lead.descuento_aportes as number | undefined,
@@ -166,12 +216,33 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
         documentacion_pendiente: lead.documentacion_pendiente as string | undefined,
     })
     const [isSaving, setIsSaving] = useState(false)
+    const [prepagas, setPrepagas] = useState<{ id: string; nombre: string }[]>([])
+    const [planes, setPlanes] = useState<{ id: string; nombre: string }[]>([])
+
+    useEffect(() => {
+        getPrepagas().then(data => setPrepagas(data.map(p => ({ id: p.id, nombre: p.nombre }))))
+    }, [])
+
+    useEffect(() => {
+        if (!formData.prepaga_id) { setPlanes([]); return }
+        getPlanesPorPrepaga(formData.prepaga_id).then(data => setPlanes(data.map(p => ({ id: p.id, nombre: p.nombre }))))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.prepaga_id])
 
     if (!isOpen) return null
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target
         setFormData(prev => ({ ...prev, [name]: value }))
+    }
+
+    const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const { name, value } = e.target
+        if (name === 'prepaga_id') {
+            setFormData(prev => ({ ...prev, prepaga_id: value || undefined, plan: undefined }))
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value || undefined }))
+        }
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -184,6 +255,7 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
         ) as LeadFormData
         const sanitized = {
             ...base,
+            prepaga_id: base.prepaga_id === ('' as unknown) ? undefined : base.prepaga_id,
             valor_plan: base.valor_plan === ('' as unknown) ? undefined : base.valor_plan,
             descuento_aportes: base.descuento_aportes === ('' as unknown) ? undefined : base.descuento_aportes,
             descuento_comercial: base.descuento_comercial === ('' as unknown) ? undefined : base.descuento_comercial,
@@ -257,6 +329,7 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
                             <Field label="CUIL Titular" name="cuil" value={formData.cuil} onChange={handleChange} icon={<CreditCard className="w-3.5 h-3.5" />} isMissing={!formData.cuil} />
                             <Field label="CUIT Empleador" name="cuit_empleador" value={formData.cuit_empleador} onChange={handleChange} icon={<Briefcase className="w-3.5 h-3.5" />} isMissing={!formData.cuit_empleador} />
                             <Field label="Nro. Trámite" name="numero_tramite" value={formData.numero_tramite} onChange={handleChange} icon={<FileText className="w-3.5 h-3.5" />} isMissing={!formData.numero_tramite} />
+                            <Field label="Sueldo Bruto (si es PMO)" name="sueldo_bruto" value={formData.sueldo_bruto} onChange={handleChange} type="number" icon={<DollarSign className="w-3.5 h-3.5" />} isMissing={!formData.sueldo_bruto} />
                         </div>
                     </AccordionSection>
 
@@ -318,7 +391,30 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
                     {/* ── Sección: Cotización ── */}
                     <AccordionSection title="Información de Cotización" icon={<DollarSign className="w-4 h-4 text-emerald-500" />}>
                         <div className="grid grid-cols-2 gap-3">
-                            <Field label="Plan" name="plan" value={formData.plan} onChange={handleChange} colSpan={2} isMissing={!formData.plan} />
+                            <SelectField
+                                label="Prepaga"
+                                name="prepaga_id"
+                                value={formData.prepaga_id ?? undefined}
+                                onChange={handleSelectChange}
+                                options={prepagas.map(p => ({ value: p.id, label: p.nombre }))}
+                                placeholder="— Sin seleccionar —"
+                                colSpan={2}
+                                isMissing={!formData.prepaga_id}
+                            />
+                            {planes.length > 0 ? (
+                                <SelectField
+                                    label="Plan"
+                                    name="plan"
+                                    value={formData.plan}
+                                    onChange={handleSelectChange}
+                                    options={planes.map(p => ({ value: p.nombre, label: p.nombre }))}
+                                    placeholder="— Seleccionar plan —"
+                                    colSpan={2}
+                                    isMissing={!formData.plan}
+                                />
+                            ) : (
+                                <Field label="Plan" name="plan" value={formData.plan} onChange={handleChange} colSpan={2} isMissing={!formData.plan} />
+                            )}
                             <Field label="Valor Base (ARS)" name="valor_plan" value={formData.valor_plan} onChange={handleChange} type="number" icon={<DollarSign className="w-3.5 h-3.5" />} isMissing={!formData.valor_plan} />
                             <Field label="IVA (ARS)" name="iva" value={formData.iva} onChange={handleChange} type="number" icon={<DollarSign className="w-3.5 h-3.5" />} />
                             <Field label="Desc. Aportes (ARS)" name="descuento_aportes" value={formData.descuento_aportes} onChange={handleChange} type="number" />

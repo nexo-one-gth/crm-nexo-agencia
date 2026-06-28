@@ -1,6 +1,6 @@
 // Deployment trigger
 import { createClient } from '@/lib/supabase/server'
-import { Users, Target, MessageCircle, BarChart3, Clock, FileText, ChevronRight, TrendingUp } from 'lucide-react'
+import { Users, Target, MessageCircle, BarChart3, Clock, FileText, ChevronRight, TrendingUp, BadgeDollarSign } from 'lucide-react'
 import Link from 'next/link'
 
 export default async function DashboardPage() {
@@ -28,6 +28,7 @@ export default async function DashboardPage() {
     { data: recentActivities },
     { data: activeCampaigns },
     { count: altasActivas },
+    { data: comisionesPendientes },
   ] = await Promise.all([
     supabase
       .from('leads')
@@ -52,6 +53,11 @@ export default async function DashboardPage() {
       .select('*', { count: 'exact', head: true })
       .eq('asesor_id', user.id)
       .in('estado', ['en_proceso', 'enviada', 'observada']),
+    supabase
+      .from('comisiones')
+      .select('monto_comision')
+      .eq('asesor_id', user.id)
+      .eq('estado', 'pendiente'),
   ])
 
   // Derivar totalLeads y stageCounts de una sola query (BUG 3)
@@ -89,6 +95,9 @@ export default async function DashboardPage() {
   }
 
   const forecastFormatted = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(totalForecast)
+
+  const totalComisionesPendientes = (comisionesPendientes ?? []).reduce((sum, c) => sum + Number(c.monto_comision), 0)
+  const comisionesFormatted = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(totalComisionesPendientes)
 
   const stats = [
     { name: 'Mis Leads', value: totalLeads, icon: Users, color: 'from-blue-600 to-blue-400' },
@@ -142,6 +151,23 @@ export default async function DashboardPage() {
           <div>
             <p className="text-[10px] sm:text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Altas en proceso</p>
             <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">{altasActivas ?? 0}</p>
+          </div>
+        </div>
+        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors shrink-0" />
+      </Link>
+
+      {/* Mis Comisiones — acceso rápido */}
+      <Link
+        href="/comisiones"
+        className="glass-card p-4 sm:p-5 rounded-2xl flex items-center justify-between group hover:bg-white/10 transition-colors"
+      >
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-gradient-to-br from-amber-500 to-orange-400 shadow-lg shrink-0">
+            <BadgeDollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] sm:text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Comisiones pendientes</p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">{comisionesFormatted}</p>
           </div>
         </div>
         <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors shrink-0" />

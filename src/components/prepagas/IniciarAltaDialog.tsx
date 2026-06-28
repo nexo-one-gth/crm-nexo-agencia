@@ -15,7 +15,7 @@ interface IniciarAltaDialogProps {
   prepagaNombre: string
 }
 
-const TIPOS_ALTA = ['particular', 'relacion_dependencia', 'monotributo']
+const TIPOS_ALTA = ['particular', 'relacion_dependencia', 'monotributo', 'pmo']
 
 export function IniciarAltaDialog({
   isOpen,
@@ -116,7 +116,8 @@ export function IniciarAltaDialog({
                 <option key={t} value={t}>
                   {t === 'particular' ? 'Particular' :
                    t === 'relacion_dependencia' ? 'Relación de dependencia' :
-                   'Monotributo'}
+                   t === 'monotributo' ? 'Monotributo' :
+                   'PMO / Aportes (afinidad)'}
                 </option>
               ))}
             </select>
