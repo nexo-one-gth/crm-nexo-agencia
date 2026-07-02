@@ -244,6 +244,85 @@ export const getAdminsConAsesores = async (): Promise<ActionResponse<AdminConAse
     }
 }
 
+export type LeadsAsignadosStat = {
+    asesor_id: string
+    nombre: string
+    email: string | null
+    count: number
+}
+
+export type LeadsAsignadosData = {
+    stats: LeadsAsignadosStat[]
+    total: number
+}
+
+// Cantidad de leads asignados por asesor en un rango de fechas (usa leads.assigned_at)
+export const getLeadsAsignadosPorFecha = async (desde: string, hasta: string): Promise<ActionResponse<LeadsAsignadosData>> => {
+    const guard = await assertAdmin()
+    if (guard.error || !guard.user) return { success: false, error: guard.error ?? 'Error de autenticación' }
+    const callerId = guard.user.id
+
+    const fechaSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Fecha inválida' })
+    const parsed = z.object({ desde: fechaSchema, hasta: fechaSchema }).safeParse({ desde, hasta })
+    if (!parsed.success) return { success: false, error: 'Rango de fechas inválido' }
+
+    const supabase = await createClient()
+
+    const { data: callerProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', callerId)
+        .single()
+
+    let query = supabase
+        .from('leads')
+        .select('assigned_to')
+        .not('assigned_to', 'is', null)
+        .is('deleted_at', null)
+        .gte('assigned_at', `${desde}T00:00:00`)
+        .lte('assigned_at', `${hasta}T23:59:59.999`)
+
+    // Admin regular: solo los leads de su equipo (asesores asignados + él mismo)
+    if (callerProfile?.role !== 'admin_principal') {
+        const { data: adminAsesores } = await supabase
+            .from('admin_asesores')
+            .select('asesor_id')
+            .eq('admin_id', callerId)
+
+        const teamIds = [callerId, ...(adminAsesores ?? []).map(a => a.asesor_id)]
+        query = query.in('assigned_to', teamIds)
+    }
+
+    const { data: leads, error } = await query
+    if (error) return { success: false, error: error.message }
+
+    const countsById = new Map<string, number>()
+    for (const lead of leads ?? []) {
+        if (!lead.assigned_to) continue
+        countsById.set(lead.assigned_to, (countsById.get(lead.assigned_to) ?? 0) + 1)
+    }
+
+    let stats: LeadsAsignadosStat[] = []
+    if (countsById.size > 0) {
+        const { data: perfiles, error: perfilesError } = await supabase
+            .from('profiles')
+            .select('id, first_name, last_name, email')
+            .in('id', Array.from(countsById.keys()))
+
+        if (perfilesError) return { success: false, error: perfilesError.message }
+
+        stats = (perfiles ?? []).map(p => ({
+            asesor_id: p.id,
+            nombre: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || (p.email ?? 'Sin nombre'),
+            email: p.email,
+            count: countsById.get(p.id) ?? 0
+        })).sort((a, b) => b.count - a.count)
+    }
+
+    const total = stats.reduce((acc, s) => acc + s.count, 0)
+    return { success: true, data: { stats, total } }
+}
+
 export const asignarAsesorAAdmin = async (adminId: string, asesorId: string): Promise<ActionResponse> => {
     const guard = await assertAdminPrincipal()
     if (guard.error) return { success: false, error: guard.error }

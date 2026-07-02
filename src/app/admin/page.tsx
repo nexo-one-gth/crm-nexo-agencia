@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { AdminAdvisorView } from '@/components/admin/AdminAdvisorView'
+import { LeadsAsignadosStats } from '@/components/admin/LeadsAsignadosStats'
 
 export default async function AdminPage() {
     const supabase = await createClient()
@@ -22,7 +23,8 @@ export default async function AdminPage() {
     const isAdminPrincipal = userRole === 'admin_principal'
 
     return (
-        <div className="max-w-6xl mx-auto py-8">
+        <div className="max-w-6xl mx-auto py-8 space-y-6">
+            <LeadsAsignadosStats />
             <AdminAdvisorView isAdminPrincipal={isAdminPrincipal} currentUserId={user.id} />
         </div>
     )

@@ -763,6 +763,7 @@ export type Database = {
         Row: {
           address_city: string | null
           address_state: string | null
+          assigned_at: string | null
           assigned_to: string | null
           campaign_id: string | null
           cantidad_integrantes: number | null
@@ -805,6 +806,7 @@ export type Database = {
         Insert: {
           address_city?: string | null
           address_state?: string | null
+          assigned_at?: string | null
           assigned_to?: string | null
           campaign_id?: string | null
           cantidad_integrantes?: number | null
@@ -847,6 +849,7 @@ export type Database = {
         Update: {
           address_city?: string | null
           address_state?: string | null
+          assigned_at?: string | null
           assigned_to?: string | null
           campaign_id?: string | null
           cantidad_integrantes?: number | null
