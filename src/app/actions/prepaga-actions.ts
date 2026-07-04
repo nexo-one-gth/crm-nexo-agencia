@@ -718,6 +718,70 @@ export async function marcarComisionLiquidada(id: string) {
 }
 
 // ---------------------------------------------------------------------------
+// REGLAS DE COMISIÓN (admin)
+// ---------------------------------------------------------------------------
+
+export async function getReglasComision() {
+  const guard = await assertAdmin()
+  if (guard.error) return []
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('prepaga_comision_reglas')
+    .select('*, prepagas(nombre, slug)')
+    .order('segmento', { ascending: true })
+  return data ?? []
+}
+
+const ReglaComisionSchema = z.object({
+  id: z.string().uuid().optional(),
+  prepaga_id: z.string().uuid(),
+  segmento: z.enum(['particular', 'relacion_dependencia', 'monotributo', 'pmo']),
+  // null = regla general: aplica a cualquier origen que no tenga regla específica
+  origen: z.enum(['nexo', 'referido', 'campania']).nullable(),
+  tipo_base: z.enum(['valor_plan', 'pct_sueldo_bruto']),
+  porcentaje: z.coerce.number().min(0).max(1000),
+  notas: z.string().optional().nullable(),
+})
+
+export async function guardarReglaComision(values: z.infer<typeof ReglaComisionSchema>) {
+  const guard = await assertAdmin()
+  if (guard.error) return { error: guard.error }
+
+  const parsed = ReglaComisionSchema.safeParse(values)
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  const supabase = await createClient()
+  const { id, ...campos } = parsed.data
+  const payload = { ...campos, notas: campos.notas || null, updated_at: new Date().toISOString() }
+
+  const { error } = id
+    ? await supabase.from('prepaga_comision_reglas').update(payload).eq('id', id)
+    : await supabase.from('prepaga_comision_reglas').insert(payload)
+
+  if (error) {
+    if (error.code === '23505') {
+      return { error: 'Ya existe una regla para esa combinación de prepaga, segmento y origen' }
+    }
+    return { error: error.message }
+  }
+
+  revalidatePath('/admin/comisiones/reglas')
+  return { success: true }
+}
+
+export async function eliminarReglaComision(id: string) {
+  const guard = await assertAdmin()
+  if (guard.error) return { error: guard.error }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('prepaga_comision_reglas').delete().eq('id', id)
+  if (error) return { error: error.message }
+
+  revalidatePath('/admin/comisiones/reglas')
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
 // CIERRES COMISIONALES (lotes)
 // ---------------------------------------------------------------------------
 
