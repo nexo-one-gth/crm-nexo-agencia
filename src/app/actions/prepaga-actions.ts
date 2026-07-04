@@ -547,6 +547,28 @@ export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, obser
 // COMISIONES
 // ---------------------------------------------------------------------------
 
+// Devuelve el lote abierto de la prepaga; si no existe, lo crea para el mes actual.
+// Toda comisión nace dentro de un lote para que la liquidación sea trazable por cierre.
+async function getOrCreateCierreAbierto(supabase: Awaited<ReturnType<typeof createClient>>, prepagaId: string) {
+  const { data: abierto } = await supabase
+    .from('cierres_comisionales')
+    .select('id, mes_periodo')
+    .eq('prepaga_id', prepagaId)
+    .eq('estado', 'abierto')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (abierto) return abierto
+
+  const mesPeriodo = new Date().toISOString().slice(0, 7) // YYYY-MM
+  const { data: nuevo } = await supabase
+    .from('cierres_comisionales')
+    .insert({ prepaga_id: prepagaId, mes_periodo: mesPeriodo })
+    .select('id, mes_periodo')
+    .single()
+  return nuevo
+}
+
 async function generarComisionParaAlta(params: {
   altaId: string
   leadId: string
@@ -561,28 +583,34 @@ async function generarComisionParaAlta(params: {
     .from('comisiones').select('id').eq('alta_id', params.altaId).maybeSingle()
   if (existente) return
 
-  const { data: regla } = await supabase
+  const { data: lead } = await supabase
+    .from('leads')
+    .select('valor_final_socio, sueldo_bruto, origen')
+    .eq('id', params.leadId)
+    .single()
+
+  const origen = lead?.origen ?? 'nexo'
+
+  // La escala depende del origen del dato: regla específica del origen primero,
+  // si no existe cae a la regla general (origen NULL, aplica a todos).
+  const { data: reglas } = await supabase
     .from('prepaga_comision_reglas')
     .select('*')
     .eq('prepaga_id', params.prepagaId)
     .eq('segmento', params.segmento)
-    .maybeSingle()
+    .or(`origen.eq.${origen},origen.is.null`)
+
+  const regla = reglas?.find(r => r.origen === origen) ?? reglas?.find(r => r.origen === null)
 
   if (!regla) {
     await supabase.from('activities').insert({
       lead_id: params.leadId,
       created_by: params.asesorId,
       type: 'comision_sin_regla',
-      description: `No se generó comisión: no hay regla configurada para este segmento (${params.segmento}) en esta prepaga`,
+      description: `No se generó comisión: no hay regla configurada para este segmento (${params.segmento}) y origen (${origen}) en esta prepaga`,
     })
     return
   }
-
-  const { data: lead } = await supabase
-    .from('leads')
-    .select('valor_final_socio, sueldo_bruto')
-    .eq('id', params.leadId)
-    .single()
 
   const montoBase = regla.tipo_base === 'pct_sueldo_bruto'
     ? lead?.sueldo_bruto
@@ -599,7 +627,21 @@ async function generarComisionParaAlta(params: {
     return
   }
 
+  // Override por asesor: % que le corresponde sobre la comisión de la regla
+  // (prepaga_asesores.comision_pct, cargado al asignar el asesor a la prepaga).
+  const adminSupabase = createAdminClient()
+  const { data: asignacion } = await adminSupabase
+    .from('prepaga_asesores')
+    .select('comision_pct')
+    .eq('prepaga_id', params.prepagaId)
+    .eq('asesor_id', params.asesorId)
+    .maybeSingle()
+  const pctAsesor = asignacion?.comision_pct ?? null
+
   const montoComision = Number(montoBase) * Number(regla.porcentaje) / 100
+    * (pctAsesor !== null ? Number(pctAsesor) / 100 : 1)
+
+  const cierre = await getOrCreateCierreAbierto(supabase, params.prepagaId)
 
   await supabase.from('comisiones').insert({
     alta_id: params.altaId,
@@ -607,17 +649,21 @@ async function generarComisionParaAlta(params: {
     asesor_id: params.asesorId,
     prepaga_id: params.prepagaId,
     segmento: params.segmento,
+    origen,
     tipo_base: regla.tipo_base,
     porcentaje: regla.porcentaje,
+    comision_pct_asesor: pctAsesor,
     monto_base: montoBase,
     monto_comision: montoComision,
+    cierre_id: cierre?.id ?? null,
   })
 
+  const montoFmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(montoComision)
   await supabase.from('activities').insert({
     lead_id: params.leadId,
     created_by: params.asesorId,
     type: 'comision_generada',
-    description: `Comisión generada: ${new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(montoComision)}`,
+    description: `Comisión generada: ${montoFmt} (origen: ${origen}${cierre ? `, lote ${cierre.mes_periodo}` : ''})`,
   })
 }
 
@@ -629,9 +675,10 @@ export async function getComisionesAdmin() {
     .from('comisiones')
     .select(`
       *,
-      leads(first_name, last_name),
+      leads(first_name, last_name, campaigns(name)),
       prepagas(nombre, slug),
-      profiles!comisiones_asesor_id_fkey(first_name, last_name)
+      profiles!comisiones_asesor_id_fkey(first_name, last_name),
+      cierres_comisionales(id, mes_periodo, estado)
     `)
     .order('created_at', { ascending: false })
   return data ?? []
@@ -643,7 +690,12 @@ export async function getMisComisiones() {
   if (!user) return []
   const { data } = await supabase
     .from('comisiones')
-    .select(`*, leads(first_name, last_name), prepagas(nombre, slug)`)
+    .select(`
+      *,
+      leads(first_name, last_name, campaigns(name)),
+      prepagas(nombre, slug),
+      cierres_comisionales(mes_periodo, estado)
+    `)
     .eq('asesor_id', user.id)
     .order('created_at', { ascending: false })
   return data ?? []
@@ -660,6 +712,83 @@ export async function marcarComisionLiquidada(id: string) {
     .eq('id', id)
 
   if (error) return { error: error.message }
+  revalidatePath('/admin/comisiones')
+  revalidatePath('/comisiones')
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// CIERRES COMISIONALES (lotes)
+// ---------------------------------------------------------------------------
+
+export async function getCierresAdmin() {
+  const guard = await assertAdmin()
+  if (guard.error) return []
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('cierres_comisionales')
+    .select(`
+      *,
+      prepagas(nombre, slug),
+      comisiones(
+        id, monto_comision, estado, segmento, origen, created_at,
+        leads(first_name, last_name, campaigns(name)),
+        profiles!comisiones_asesor_id_fkey(first_name, last_name)
+      )
+    `)
+    .order('mes_periodo', { ascending: false })
+    .order('created_at', { ascending: false })
+  return data ?? []
+}
+
+// Cierra el lote: deja de recibir ventas nuevas (las próximas aprobadas abren otro lote).
+export async function cerrarCierre(id: string, fechaPagoEstimada?: string) {
+  const guard = await assertAdmin()
+  if (guard.error) return { error: guard.error }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('cierres_comisionales')
+    .update({
+      estado: 'cerrado',
+      fecha_cierre: new Date().toISOString().slice(0, 10),
+      cerrado_at: new Date().toISOString(),
+      cerrado_by: guard.user!.id,
+      fecha_pago_estimada: fechaPagoEstimada ?? null,
+    })
+    .eq('id', id)
+    .eq('estado', 'abierto')
+
+  if (error) return { error: error.message }
+  revalidatePath('/admin/comisiones')
+  revalidatePath('/comisiones')
+  return { success: true }
+}
+
+// Liquida el lote completo: marca el cierre y todas sus comisiones pendientes.
+export async function liquidarCierre(id: string) {
+  const guard = await assertAdmin()
+  if (guard.error) return { error: guard.error }
+
+  const supabase = await createClient()
+  const ahora = new Date().toISOString()
+
+  const { error: errorCierre } = await supabase
+    .from('cierres_comisionales')
+    .update({ estado: 'liquidado', liquidado_at: ahora, liquidado_by: guard.user!.id })
+    .eq('id', id)
+    .in('estado', ['abierto', 'cerrado'])
+
+  if (errorCierre) return { error: errorCierre.message }
+
+  const { error: errorComisiones } = await supabase
+    .from('comisiones')
+    .update({ estado: 'liquidada', liquidada_at: ahora, liquidada_by: guard.user!.id })
+    .eq('cierre_id', id)
+    .eq('estado', 'pendiente')
+
+  if (errorComisiones) return { error: errorComisiones.message }
+
   revalidatePath('/admin/comisiones')
   revalidatePath('/comisiones')
   return { success: true }

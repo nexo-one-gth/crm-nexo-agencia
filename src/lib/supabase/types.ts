@@ -389,10 +389,79 @@ export type Database = {
           },
         ]
       }
+      cierres_comisionales: {
+        Row: {
+          cerrado_at: string | null
+          cerrado_by: string | null
+          created_at: string
+          estado: string
+          fecha_cierre: string | null
+          fecha_pago_estimada: string | null
+          id: string
+          liquidado_at: string | null
+          liquidado_by: string | null
+          mes_periodo: string
+          notas: string | null
+          prepaga_id: string
+        }
+        Insert: {
+          cerrado_at?: string | null
+          cerrado_by?: string | null
+          created_at?: string
+          estado?: string
+          fecha_cierre?: string | null
+          fecha_pago_estimada?: string | null
+          id?: string
+          liquidado_at?: string | null
+          liquidado_by?: string | null
+          mes_periodo: string
+          notas?: string | null
+          prepaga_id: string
+        }
+        Update: {
+          cerrado_at?: string | null
+          cerrado_by?: string | null
+          created_at?: string
+          estado?: string
+          fecha_cierre?: string | null
+          fecha_pago_estimada?: string | null
+          id?: string
+          liquidado_at?: string | null
+          liquidado_by?: string | null
+          mes_periodo?: string
+          notas?: string | null
+          prepaga_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cierres_comisionales_cerrado_by_fkey"
+            columns: ["cerrado_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cierres_comisionales_liquidado_by_fkey"
+            columns: ["liquidado_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cierres_comisionales_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comisiones: {
         Row: {
           alta_id: string
           asesor_id: string
+          cierre_id: string | null
+          comision_pct_asesor: number | null
           created_at: string
           estado: string
           id: string
@@ -402,6 +471,7 @@ export type Database = {
           monto_base: number
           monto_comision: number
           notas: string | null
+          origen: string | null
           porcentaje: number
           prepaga_id: string
           segmento: string
@@ -410,6 +480,8 @@ export type Database = {
         Insert: {
           alta_id: string
           asesor_id: string
+          cierre_id?: string | null
+          comision_pct_asesor?: number | null
           created_at?: string
           estado?: string
           id?: string
@@ -419,6 +491,7 @@ export type Database = {
           monto_base: number
           monto_comision: number
           notas?: string | null
+          origen?: string | null
           porcentaje: number
           prepaga_id: string
           segmento: string
@@ -427,6 +500,8 @@ export type Database = {
         Update: {
           alta_id?: string
           asesor_id?: string
+          cierre_id?: string | null
+          comision_pct_asesor?: number | null
           created_at?: string
           estado?: string
           id?: string
@@ -436,12 +511,20 @@ export type Database = {
           monto_base?: number
           monto_comision?: number
           notas?: string | null
+          origen?: string | null
           porcentaje?: number
           prepaga_id?: string
           segmento?: string
           tipo_base?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "comisiones_cierre_id_fkey"
+            columns: ["cierre_id"]
+            isOneToOne: false
+            referencedRelation: "cierres_comisionales"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "comisiones_alta_id_fkey"
             columns: ["alta_id"]
@@ -793,6 +876,7 @@ export type Database = {
           numero_tramite: string | null
           obra_social: string | null
           observaciones_cotizacion: string | null
+          origen: string | null
           phone: string | null
           pipeline_stage_id: string | null
           plan: string | null
@@ -836,6 +920,7 @@ export type Database = {
           numero_tramite?: string | null
           obra_social?: string | null
           observaciones_cotizacion?: string | null
+          origen?: string | null
           phone?: string | null
           pipeline_stage_id?: string | null
           plan?: string | null
@@ -879,6 +964,7 @@ export type Database = {
           numero_tramite?: string | null
           obra_social?: string | null
           observaciones_cotizacion?: string | null
+          origen?: string | null
           phone?: string | null
           pipeline_stage_id?: string | null
           plan?: string | null
@@ -1010,6 +1096,7 @@ export type Database = {
           created_at: string
           id: string
           notas: string | null
+          origen: string | null
           porcentaje: number
           prepaga_id: string
           segmento: string
@@ -1020,6 +1107,7 @@ export type Database = {
           created_at?: string
           id?: string
           notas?: string | null
+          origen?: string | null
           porcentaje: number
           prepaga_id: string
           segmento: string
@@ -1030,6 +1118,7 @@ export type Database = {
           created_at?: string
           id?: string
           notas?: string | null
+          origen?: string | null
           porcentaje?: number
           prepaga_id?: string
           segmento?: string

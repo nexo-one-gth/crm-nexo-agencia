@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { BadgeDollarSign, ArrowLeft } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { origenLabel } from '@/lib/origen'
 
 export const metadata = { title: 'Mis Comisiones | Nexo Asesores' }
 
@@ -67,9 +68,11 @@ export default async function ComisionesPage() {
       ) : (
         <div className="space-y-3">
           {comisiones.map(c => {
-            const lead = c.leads as { first_name: string; last_name: string | null } | null
+            const lead = c.leads as { first_name: string; last_name: string | null; campaigns: { name: string } | null } | null
             const prepaga = c.prepagas as { nombre: string } | null
+            const cierre = c.cierres_comisionales as { mes_periodo: string; estado: string } | null
             const badge = ESTADO_BADGE[c.estado] ?? ESTADO_BADGE.pendiente
+            const campania = lead?.campaigns?.name
 
             return (
               <div key={c.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-2xl p-4">
@@ -81,6 +84,14 @@ export default async function ComisionesPage() {
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${badge.color}`}>{badge.label}</span>
                       <span className="text-xs text-slate-400">{SEGMENTO_LABEL[c.segmento] ?? c.segmento}</span>
+                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                        {origenLabel(c.origen)}{campania ? `: ${campania}` : ''}
+                      </span>
+                      {cierre && (
+                        <span className="text-xs text-slate-400">
+                          Lote {cierre.mes_periodo} ({cierre.estado})
+                        </span>
+                      )}
                       <span className="text-xs text-slate-400">{format(new Date(c.created_at), "d MMM yyyy", { locale: es })}</span>
                     </div>
                   </div>

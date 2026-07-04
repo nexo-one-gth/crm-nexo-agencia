@@ -153,6 +153,12 @@ admin_principal
 - `altas` — lead_id, prepaga_id, estado (draft/enviada/completada)
 - `alta_items` — ítem del checklist, archivo_path (Storage), completado
 
+**Comisiones:**
+- `prepaga_comision_reglas` — regla por prepaga + segmento + origen (origen NULL = aplica a todos los orígenes)
+- `comisiones` — 1:1 con alta aprobada; snapshot de regla, origen, % del asesor y lote
+- `cierres_comisionales` — lotes por prepaga + mes_periodo; ciclo abierto → cerrado → liquidado; liquidar el lote liquida todas sus comisiones
+- `leads.origen` — `nexo` (importación) | `referido` (carga del asesor) | `campania` (importado/asignado con campaña); define la escala comisional
+
 **Campañas y comunicación:**
 - `campaigns` — nombre, descripción, fecha_inicio, fecha_fin
 - `instancias_whatsapp` — instancias Evolution API
@@ -208,6 +214,7 @@ import { cn } from '@/lib/utils' // cn = clsx + tailwind-merge
 - Panel admin: gestión de asesores con cascada de equipos
 - Módulo Recursos: navegador Google Drive integrado
 - Campañas de marketing (CRUD)
+- Módulo Comisiones: reglas por prepaga+segmento+origen, generación automática al aprobar alta, lotes de cierre comisional con liquidación por lote (`/comisiones`, `/admin/comisiones`)
 - Glass design system completo
 
 ### Pendiente / Próximas fases 🚧
@@ -229,7 +236,9 @@ supabase/migrations/
 ├── 20260614_cotizador_lead.sql        # lead_cotizaciones
 ├── 20260614_prepaga_credenciales_avalian.sql
 ├── 20260616_admin_principal_role.sql  # Rol admin_principal
+├── 20260628_modulo_comisiones.sql     # prepaga_comision_reglas + comisiones + seed condiciones comerciales
 ├── 20260702_lead_assigned_at.sql      # assigned_at en leads + trigger (reporte admin)
+├── 20260704_comisiones_origen_cierres.sql  # leads.origen + reglas por origen + cierres_comisionales (lotes)
 └── add_lead_fields.sql                # Campos extra en leads
 ```
 

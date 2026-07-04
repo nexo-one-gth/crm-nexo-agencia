@@ -137,7 +137,8 @@ export async function createLead(values: { first_name: string; last_name: string
             notes: values.notes,
             pipeline_stage_id: stage.id,
             assigned_to: user.id, // Auto-assign to the advisor
-            source: values.source || 'App Asesores'
+            source: values.source || 'App Asesores',
+            origen: 'referido' // Lead cargado por el asesor → escala comisional de referido
         })
         .select()
         .single()
@@ -292,13 +293,24 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
         .update({
             assigned_to: advisorId,
             pipeline_stage_id: stage.id,
-            campaign_id: campaign?.id || null
         })
         .in('id', leadIds)
 
     if (error) {
         console.error('Error assigning leads:', error)
         return { success: false, error: error.message }
+    }
+
+    // Si el asesor tiene campaña activa, los leads que aún no pertenecen a ninguna
+    // campaña pasan a ella y su origen (que define la escala comisional) es "campania".
+    // No se pisa la campaña/origen de leads que ya venían de otra campaña.
+    if (campaign?.id) {
+        const { error: campaignError } = await supabase
+            .from('leads')
+            .update({ campaign_id: campaign.id, origen: 'campania' })
+            .in('id', leadIds)
+            .is('campaign_id', null)
+        if (campaignError) console.error('Error attaching campaign to leads:', campaignError)
     }
 
     revalidatePath('/funnel')
@@ -375,6 +387,7 @@ export async function updateLead(data: Record<string, unknown>) {
         observaciones_cotizacion: z.string().optional(),
         interest_level: z.number().int().optional(),
         source: z.string().optional(),
+        origen: z.enum(['nexo', 'referido', 'campania']).optional(),
         notes: z.string().optional(),
         assigned_to_name: z.string().optional(),
         stage_name: z.string().optional(),

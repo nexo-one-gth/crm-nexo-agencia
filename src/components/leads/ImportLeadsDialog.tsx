@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { SimpleModal } from '@/components/ui/SimpleModal'
-import { FileUp, Loader2, CheckCircle2, AlertCircle, XCircle, Download } from 'lucide-react'
+import { FileUp, Loader2, CheckCircle2, AlertCircle, XCircle, Download, Megaphone } from 'lucide-react'
 import { importLeadsAction } from '@/app/actions/import-leads'
+import { getCampaigns } from '@/app/actions/campaigns'
 import { toast } from 'sonner'
 
 interface ImportLeadsDialogProps {
@@ -15,6 +16,15 @@ interface ImportLeadsDialogProps {
 export const ImportLeadsDialog = ({ isOpen, onClose, onSuccess }: ImportLeadsDialogProps) => {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [result, setResult] = useState<{ imported: number; failed: number; errors: { row: number | string, error: string }[] } | null>(null)
+    const [campaigns, setCampaigns] = useState<{ id: string; name: string }[]>([])
+
+    useEffect(() => {
+        if (!isOpen) return
+        getCampaigns().then(data => {
+            const list = data as unknown as { id: string; name: string }[]
+            setCampaigns(list.map(c => ({ id: c.id, name: c.name })))
+        })
+    }, [isOpen])
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
@@ -86,6 +96,25 @@ export const ImportLeadsDialog = ({ isOpen, onClose, onSuccess }: ImportLeadsDia
                                     </span>
                                 </label>
                             </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase text-slate-500 ml-1 flex items-center gap-1.5">
+                                <Megaphone className="w-3.5 h-3.5" /> Origen del dato
+                            </label>
+                            <select
+                                name="campaign_id"
+                                defaultValue=""
+                                className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/50 focus:ring-0 transition-all text-sm outline-none"
+                            >
+                                <option value="">Origen Nexo (sin campaña)</option>
+                                {campaigns.map(c => (
+                                    <option key={c.id} value={c.id}>Campaña: {c.name}</option>
+                                ))}
+                            </select>
+                            <p className="text-[10px] text-slate-500 ml-1">
+                                Define la escala comisional: si elegís una campaña, los leads nacen con origen &quot;Campaña&quot;; si no, con origen &quot;Nexo&quot;.
+                            </p>
                         </div>
 
                         <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 space-y-2">

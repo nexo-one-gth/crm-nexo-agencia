@@ -77,6 +77,21 @@ export async function importLeadsAction(formData: FormData) {
         const file = formData.get('file') as File
         if (!file) return { success: false, error: 'No se subió ningún archivo' }
 
+        // Origen del dato (define la escala comisional): si la importación viene
+        // asociada a una campaña, el lead nace con origen "campania"; si no, "nexo".
+        const campaignId = (formData.get('campaign_id') as string) || null
+        let campaignName: string | null = null
+        if (campaignId) {
+            const { data: campaign } = await supabase
+                .from('campaigns')
+                .select('id, name')
+                .eq('id', campaignId)
+                .single()
+            if (!campaign) return { success: false, error: 'Campaña no encontrada' }
+            campaignName = campaign.name
+        }
+        const origen = campaignId ? 'campania' : 'nexo'
+
         const arrayBuffer = await file.arrayBuffer()
         const workbook = XLSX.read(arrayBuffer, { type: 'array' })
         const worksheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -201,6 +216,9 @@ export async function importLeadsAction(formData: FormData) {
                     address_city: validated.LOCALIDAD || null,
                     pipeline_stage_id: stage.id,
                     assigned_to: null,
+                    origen,
+                    campaign_id: campaignId,
+                    source: campaignName ? `Campaña: ${campaignName}` : 'Importación Nexo',
                     notes: (validated.OBSERVACIONES || `Importado de Excel - Ubicación: ${validated.LOCALIDAD || ''}, ${validated.PROVINCIA || ''} - Origen original: ${validated.ORIGEN_DATO || 'Importación Excel'}`).trim(),
                     numero_tramite: validated.NUMERO_TRAMITE || null,
                     cantidad_integrantes: validated.CANTIDAD_INTEGRANTES || null,

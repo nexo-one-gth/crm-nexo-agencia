@@ -8,6 +8,7 @@ import { getPrepagas, getPlanesPorPrepaga } from '@/app/actions/prepaga-actions'
 import { toast } from 'sonner'
 import { X, User, Phone, Mail, CreditCard, MapPin, Briefcase, DollarSign, FileText, Users, Activity, Tag, CheckCircle2, ChevronDown } from 'lucide-react'
 import { calculateLeadCompletion, getCompletionColor, COMPLETION_FIELDS } from '@/lib/utils/lead-completion'
+import { ORIGEN_OPTIONS } from '@/lib/origen'
 
 // ── Zod schema — todos los campos son opcionales salvo id ──────────────────────
 const leadUpdateSchema = z.object({
@@ -39,7 +40,7 @@ const leadUpdateSchema = z.object({
     valor_forecast: z.coerce.number().optional(),
     observaciones_cotizacion: z.string().optional(),
     interest_level: z.coerce.number().int().min(0).max(2).optional(),
-    source: z.string().optional(),
+    origen: z.enum(['nexo', 'referido', 'campania']).optional(),
     notes: z.string().optional(),
     documentacion_pendiente: z.string().optional(),
 })
@@ -211,7 +212,7 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
         valor_forecast: lead.valor_forecast as number | undefined,
         observaciones_cotizacion: lead.observaciones_cotizacion as string | undefined,
         interest_level: lead.interest_level as number | undefined,
-        source: lead.source as string | undefined,
+        origen: lead.origen as 'nexo' | 'referido' | 'campania' | undefined,
         notes: lead.notes as string | undefined,
         documentacion_pendiente: lead.documentacion_pendiente as string | undefined,
     })
@@ -351,12 +352,13 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
                                     <option value={2}>🔥🔥 Alto</option>
                                 </select>
                             </div>
-                            <Field
-                                label="Origen (Source)"
-                                name="source"
-                                value={formData.source}
-                                onChange={handleChange}
-                                icon={<Tag className="w-3.5 h-3.5" />}
+                            <SelectField
+                                label="Origen del dato"
+                                name="origen"
+                                value={formData.origen}
+                                onChange={handleSelectChange}
+                                options={ORIGEN_OPTIONS}
+                                placeholder="Sin definir"
                             />
                             <Field
                                 label="Documentación Pendiente"
