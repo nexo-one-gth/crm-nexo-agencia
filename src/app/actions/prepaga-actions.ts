@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdmin, isAdminRole } from '@/lib/supabase/assert-admin'
+import { listarContenidoCarpeta, type DriveItem } from '@/lib/google-drive'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 
@@ -133,6 +134,55 @@ export async function getPlanesPorPrepaga(prepagaId: string) {
     .eq('activo', true)
     .order('orden', { ascending: true })
   return data ?? []
+}
+
+// ---------------------------------------------------------------------------
+// RECURSOS DE DRIVE POR PREPAGA
+// ---------------------------------------------------------------------------
+
+export type RecursosPrepaga = {
+  folderId: string | null
+  items: DriveItem[]
+  error?: string
+}
+
+// Devuelve el listado inicial de la carpeta de Drive de una prepaga.
+// Valida que el usuario tenga acceso a la prepaga (asignada, o admin).
+export async function getRecursosPrepaga(prepagaId: string): Promise<RecursosPrepaga> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { folderId: null, items: [], error: 'No autenticado' }
+
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single()
+
+  // Asesor: solo prepagas asignadas y activas
+  if (!isAdminRole(profile?.role)) {
+    const { data: asignada } = await supabase
+      .from('prepaga_asesores_safe')
+      .select('prepaga_id')
+      .eq('asesor_id', user.id)
+      .eq('prepaga_id', prepagaId)
+      .eq('activo', true)
+      .maybeSingle()
+    if (!asignada) return { folderId: null, items: [], error: 'No tenés esta prepaga asignada' }
+  }
+
+  const { data: prepaga } = await supabase
+    .from('prepagas')
+    .select('drive_folder_id')
+    .eq('id', prepagaId)
+    .single()
+
+  const folderId = prepaga?.drive_folder_id ?? null
+  if (!folderId) return { folderId: null, items: [] }
+
+  try {
+    const items = await listarContenidoCarpeta(folderId)
+    return { folderId, items }
+  } catch {
+    return { folderId, items: [], error: 'No se pudo conectar con Google Drive' }
+  }
 }
 
 const PlanSchema = z.object({

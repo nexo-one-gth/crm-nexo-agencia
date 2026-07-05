@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowLeft, FileText, ExternalLink, Plus, Settings2 } from 'lucide-react'
 import { IniciarAltaDesdeDetalle } from './IniciarAltaDesdeDetalle'
 import { PlanesAdminSection } from './PlanesAdminSection'
+import { RecursosPrepaga } from '@/components/prepagas/RecursosPrepaga'
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -107,6 +108,15 @@ export default async function PrepagaDetallePage({ params }: { params: Promise<{
           </div>
         )}
       </section>
+
+      {/* Materiales / recursos en Drive */}
+      {prepaga.drive_folder_id && (
+        <RecursosPrepaga
+          prepagaId={prepaga.id}
+          prepagaNombre={prepaga.nombre}
+          defaultOpen
+        />
+      )}
 
       {/* Documentación requerida */}
       {(prepaga.checklist_plantillas ?? []).length > 0 && (

@@ -11,6 +11,7 @@ import { useCotizacion } from '@/hooks/useCotizacion'
 import { iniciarAltaDesdeCotizacion, getCotizadorAcceso } from '@/app/actions/cotizacion-actions'
 import { getPlanesPorPrepaga } from '@/app/actions/prepaga-actions'
 import { CotizadorInternoPremedic } from '@/components/leads/CotizadorInternoPremedic'
+import { RecursosPrepaga } from '@/components/prepagas/RecursosPrepaga'
 import type { Integrante, LeadCotizacion, PrepagaConCotizador, CotizadorAcceso, PdfListado } from '@/types/cotizacion'
 
 interface PanelCotizacionProps {
@@ -489,6 +490,12 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
                   {prepagaSeleccionada && (
                     <>
                       <hr className="border-white/10" />
+
+                      {/* Materiales / recursos de la prepaga en Drive */}
+                      <RecursosPrepaga
+                        prepagaId={prepagaSeleccionada.id}
+                        prepagaNombre={prepagaSeleccionada.nombre}
+                      />
 
                       {/* Cotizador externo (ej. Avalian): abre web + muestra credenciales */}
                       {prepagaSeleccionada.tipo_cotizador === 'externo' && (

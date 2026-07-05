@@ -71,12 +71,17 @@ export const obtenerMetadataArchivo = unstable_cache(
   { revalidate: 300 }
 )
 
-// Valida que folderId sea descendiente de la carpeta raíz configurada.
-// Sube el árbol de padres hasta encontrar el root o agotar la profundidad.
-export async function esBajoCarpetaRaiz(folderId: string): Promise<boolean> {
-  const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID
-  if (!rootId) return false
-  if (folderId === rootId) return true
+// Valida que folderId sea una de las carpetas raíz permitidas o descendiente
+// de alguna de ellas. Sube el árbol de padres hasta encontrar un root o agotar
+// la profundidad. Sirve tanto para la carpeta global (GOOGLE_DRIVE_ROOT_FOLDER_ID)
+// como para las carpetas por prepaga (prepagas.drive_folder_id).
+export async function esDescendienteDeAlguna(
+  folderId: string,
+  rootIds: string[]
+): Promise<boolean> {
+  const roots = new Set(rootIds.filter(Boolean))
+  if (roots.size === 0) return false
+  if (roots.has(folderId)) return true
 
   const drive = google.drive({ version: 'v3', auth: getAuth() })
   let currentId = folderId
@@ -85,7 +90,7 @@ export async function esBajoCarpetaRaiz(folderId: string): Promise<boolean> {
     try {
       const res = await drive.files.get({ fileId: currentId, fields: 'parents' })
       const parents = res.data.parents ?? []
-      if (parents.includes(rootId)) return true
+      if (parents.some(p => roots.has(p))) return true
       if (parents.length === 0) return false
       currentId = parents[0]
     } catch {
@@ -93,4 +98,11 @@ export async function esBajoCarpetaRaiz(folderId: string): Promise<boolean> {
     }
   }
   return false
+}
+
+// Compatibilidad: valida contra la carpeta raíz global configurada por env.
+export async function esBajoCarpetaRaiz(folderId: string): Promise<boolean> {
+  const rootId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID
+  if (!rootId) return false
+  return esDescendienteDeAlguna(folderId, [rootId])
 }

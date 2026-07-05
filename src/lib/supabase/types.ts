@@ -1315,6 +1315,7 @@ export type Database = {
           activa: boolean
           cotizador_url: string | null
           created_at: string
+          drive_folder_id: string | null
           id: string
           logo_url: string | null
           nombre: string
@@ -1328,6 +1329,7 @@ export type Database = {
           activa?: boolean
           cotizador_url?: string | null
           created_at?: string
+          drive_folder_id?: string | null
           id?: string
           logo_url?: string | null
           nombre: string
@@ -1341,6 +1343,7 @@ export type Database = {
           activa?: boolean
           cotizador_url?: string | null
           created_at?: string
+          drive_folder_id?: string | null
           id?: string
           logo_url?: string | null
           nombre?: string
