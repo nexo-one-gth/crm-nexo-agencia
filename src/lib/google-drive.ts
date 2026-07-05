@@ -29,6 +29,8 @@ export const listarContenidoCarpeta = unstable_cache(
         fields: 'files(id, name, mimeType, modifiedTime, webViewLink)',
         orderBy: 'folder,name',
         pageSize: 100,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       })
       return (res.data.files ?? []).map(f => ({
         id: f.id!,
@@ -71,31 +73,59 @@ export const obtenerMetadataArchivo = unstable_cache(
   { revalidate: 300 }
 )
 
+// Lista los IDs de las subcarpetas directas de una carpeta.
+// Nota: no podemos autorizar subiendo por `parents` porque, cuando una carpeta
+// está compartida con el service account (no es dueño), la API de Drive devuelve
+// el campo `parents` vacío. Por eso descendemos desde las raíces permitidas.
+const listarSubcarpetasIds = unstable_cache(
+  async (folderId: string): Promise<string[]> => {
+    const drive = google.drive({ version: 'v3', auth: getAuth() })
+    const res = await drive.files.list({
+      q: `'${folderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+      fields: 'files(id)',
+      pageSize: 200,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+    })
+    return (res.data.files ?? []).map(f => f.id!).filter(Boolean)
+  },
+  ['drive-subfolders'],
+  { revalidate: 300 }
+)
+
 // Valida que folderId sea una de las carpetas raíz permitidas o descendiente
-// de alguna de ellas. Sube el árbol de padres hasta encontrar un root o agotar
-// la profundidad. Sirve tanto para la carpeta global (GOOGLE_DRIVE_ROOT_FOLDER_ID)
-// como para las carpetas por prepaga (prepagas.drive_folder_id).
+// de alguna de ellas. Desciende por el árbol (BFS) listando subcarpetas hasta
+// encontrar la carpeta pedida o agotar profundidad/presupuesto. Sirve tanto
+// para la carpeta global (GOOGLE_DRIVE_ROOT_FOLDER_ID) como para las carpetas
+// por prepaga (prepagas.drive_folder_id).
 export async function esDescendienteDeAlguna(
   folderId: string,
   rootIds: string[]
 ): Promise<boolean> {
-  const roots = new Set(rootIds.filter(Boolean))
-  if (roots.size === 0) return false
-  if (roots.has(folderId)) return true
+  const roots = rootIds.filter(Boolean)
+  if (roots.length === 0) return false
+  if (roots.includes(folderId)) return true
 
-  const drive = google.drive({ version: 'v3', auth: getAuth() })
-  let currentId = folderId
+  const visited = new Set<string>()
+  let frontier = [...new Set(roots)]
+  let presupuesto = 400 // cota de carpetas visitadas por request
 
-  for (let depth = 0; depth < 8; depth++) {
-    try {
-      const res = await drive.files.get({ fileId: currentId, fields: 'parents' })
-      const parents = res.data.parents ?? []
-      if (parents.some(p => roots.has(p))) return true
-      if (parents.length === 0) return false
-      currentId = parents[0]
-    } catch {
-      return false
+  for (let depth = 0; depth < 8 && frontier.length > 0 && presupuesto > 0; depth++) {
+    const siguiente: string[] = []
+    for (const id of frontier) {
+      if (visited.has(id) || presupuesto <= 0) continue
+      visited.add(id)
+      presupuesto--
+      let hijos: string[]
+      try {
+        hijos = await listarSubcarpetasIds(id)
+      } catch {
+        continue
+      }
+      if (hijos.includes(folderId)) return true
+      siguiente.push(...hijos)
     }
+    frontier = siguiente
   }
   return false
 }
