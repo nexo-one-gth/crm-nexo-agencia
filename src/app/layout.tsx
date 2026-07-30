@@ -42,12 +42,16 @@ export default async function RootLayout({
   let displayName: string | null = null
   let displayInitial = 'U'
 
+  let isAdmin = false
+
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('first_name, last_name')
+      .select('first_name, last_name, role')
       .eq('id', user.id)
       .single()
+    const role = profile?.role?.toLowerCase() ?? ''
+    isAdmin = role === 'admin' || role === 'admin_principal'
     if (profile?.first_name) {
       displayName = profile.first_name
       displayInitial = getInitial(profile.first_name)
@@ -103,7 +107,7 @@ export default async function RootLayout({
             {children}
           </main>
         </div>
-        <BottomNav />
+        <BottomNav isAdmin={isAdmin} />
         <Toaster position="top-center" richColors />
       </body>
     </html>

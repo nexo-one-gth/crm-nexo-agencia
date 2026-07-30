@@ -55,6 +55,19 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Select nativo: desplegable legible sobre el tema oscuro */
+select.glass-input {
+  color-scheme: dark;
+}
+select.glass-input option {
+  background-color: #0f172a; /* slate-900 */
+  color: #e2e8f0;            /* slate-200 */
+}
+select.glass-input option:checked {
+  background-color: #1d4ed8; /* blue-700 */
+  color: #ffffff;
+}
+
 /* Custom scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;

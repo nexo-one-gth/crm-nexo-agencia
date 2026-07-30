@@ -1,6 +1,6 @@
 'use client'
 
-import { Home, BarChart3, Settings, Plus, Building2, FolderOpen } from 'lucide-react'
+import { Home, BarChart3, Settings, Plus, Building2, FolderOpen, LineChart } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -13,7 +13,7 @@ const NAV_ITEMS = [
     { href: '/settings', label: 'Ajustes', icon: Settings },
 ]
 
-export const BottomNav = () => {
+export const BottomNav = ({ isAdmin = false }: { isAdmin?: boolean }) => {
     const pathname = usePathname()
     const router = useRouter()
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -90,6 +90,22 @@ export const BottomNav = () => {
                             <span className={`text-[10px] font-bold ${pathname.startsWith('/recursos') ? '' : 'opacity-70'}`}>Recursos</span>
                             {pathname.startsWith('/recursos') && <div className="w-1 h-1 rounded-full bg-blue-500 mt-0.5" />}
                         </Link>
+
+                        {/* Reportes (solo admins) */}
+                        {isAdmin && (
+                            <Link
+                                href="/admin/reportes"
+                                className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[40px] ${
+                                    pathname.startsWith('/admin/reportes')
+                                        ? 'text-blue-600 dark:text-blue-400'
+                                        : 'text-slate-500 dark:text-slate-400 active:scale-95'
+                                }`}
+                            >
+                                <LineChart className={`w-5 h-5 ${pathname.startsWith('/admin/reportes') ? 'drop-shadow-[0_0_6px_rgba(59,130,246,0.5)]' : ''}`} />
+                                <span className={`text-[10px] font-bold ${pathname.startsWith('/admin/reportes') ? '' : 'opacity-70'}`}>Reportes</span>
+                                {pathname.startsWith('/admin/reportes') && <div className="w-1 h-1 rounded-full bg-blue-500 mt-0.5" />}
+                            </Link>
+                        )}
 
                         {/* Ajustes */}
                         <Link

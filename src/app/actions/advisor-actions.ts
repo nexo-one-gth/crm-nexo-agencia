@@ -323,6 +323,94 @@ export const getLeadsAsignadosPorFecha = async (desde: string, hasta: string): P
     return { success: true, data: { stats, total } }
 }
 
+export type LeadsAsignadosPorDia = {
+    fecha: string // yyyy-MM-dd
+    count: number
+}
+
+export type LeadsAsignadosDiarioData = {
+    nombre: string
+    email: string | null
+    dias: LeadsAsignadosPorDia[]
+    total: number
+}
+
+// Desglose diario de leads asignados a UN asesor en un rango de fechas (usa leads.assigned_at)
+export const getLeadsAsignadosPorDiaDeAsesor = async (
+    asesorId: string,
+    desde: string,
+    hasta: string
+): Promise<ActionResponse<LeadsAsignadosDiarioData>> => {
+    const guard = await assertAdmin()
+    if (guard.error || !guard.user) return { success: false, error: guard.error ?? 'Error de autenticación' }
+    const callerId = guard.user.id
+
+    const fechaSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Fecha inválida' })
+    const parsed = z.object({
+        asesorId: z.string().uuid({ message: 'Asesor inválido' }),
+        desde: fechaSchema,
+        hasta: fechaSchema,
+    }).safeParse({ asesorId, desde, hasta })
+    if (!parsed.success) return { success: false, error: 'Parámetros inválidos' }
+
+    const supabase = await createClient()
+
+    const { data: callerProfile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', callerId)
+        .single()
+
+    // Admin regular: solo puede ver asesores de su equipo (o a sí mismo)
+    if (callerProfile?.role !== 'admin_principal') {
+        const { data: adminAsesores } = await supabase
+            .from('admin_asesores')
+            .select('asesor_id')
+            .eq('admin_id', callerId)
+
+        const teamIds = [callerId, ...(adminAsesores ?? []).map(a => a.asesor_id)]
+        if (!teamIds.includes(asesorId)) {
+            return { success: false, error: 'No tenés acceso a este asesor' }
+        }
+    }
+
+    const { data: leads, error } = await supabase
+        .from('leads')
+        .select('assigned_at')
+        .eq('assigned_to', asesorId)
+        .not('assigned_at', 'is', null)
+        .is('deleted_at', null)
+        .gte('assigned_at', `${desde}T00:00:00`)
+        .lte('assigned_at', `${hasta}T23:59:59.999`)
+
+    if (error) return { success: false, error: error.message }
+
+    const countsByDay = new Map<string, number>()
+    for (const lead of leads ?? []) {
+        if (!lead.assigned_at) continue
+        const dia = String(lead.assigned_at).slice(0, 10)
+        countsByDay.set(dia, (countsByDay.get(dia) ?? 0) + 1)
+    }
+
+    const dias: LeadsAsignadosPorDia[] = Array.from(countsByDay.entries())
+        .map(([fecha, count]) => ({ fecha, count }))
+        .sort((a, b) => (a.fecha < b.fecha ? 1 : -1)) // más reciente primero
+
+    const total = dias.reduce((acc, d) => acc + d.count, 0)
+
+    const { data: perfil } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, email')
+        .eq('id', asesorId)
+        .single()
+
+    const nombre = perfil
+        ? (`${perfil.first_name ?? ''} ${perfil.last_name ?? ''}`.trim() || perfil.email || 'Asesor')
+        : 'Asesor'
+
+    return { success: true, data: { nombre, email: perfil?.email ?? null, dias, total } }
+}
+
 export const asignarAsesorAAdmin = async (adminId: string, asesorId: string): Promise<ActionResponse> => {
     const guard = await assertAdminPrincipal()
     if (guard.error) return { success: false, error: guard.error }
