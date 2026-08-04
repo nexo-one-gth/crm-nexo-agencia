@@ -121,7 +121,7 @@ export async function repartirEquitativo(
   leadIds: string[],
   asesorIds: string[]
 ): Promise<{ success?: boolean; asignados?: number; error?: string }> {
-  const guard = await assertAdmin()
+  const guard = await assertSupervisorOrAdmin()
   if (guard.error) return { error: guard.error }
   if (!leadIds.length) return { error: 'No seleccionaste leads' }
   if (!asesorIds.length) return { error: 'Elegí al menos un asesor' }
