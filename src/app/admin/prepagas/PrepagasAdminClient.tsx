@@ -6,6 +6,7 @@ import {
   crearPrepaga, actualizarPrepaga, crearPlan, eliminarPlan,
   asignarAsesor, desasignarAsesor, getAsesoresDePrepaga,
   getPlantillasDePrepaga, agregarItemPlantilla, eliminarItemPlantilla,
+  actualizarResumenTemplate,
 } from '@/app/actions/prepaga-actions'
 import { useRouter } from 'next/navigation'
 import { Plus, Pencil, Users, FileText, ChevronDown, ChevronUp, X, Check } from 'lucide-react'
@@ -382,23 +383,49 @@ function AsesoresSection({ prepagaId, asesores }: { prepagaId: string; asesores:
 // ---------------------------------------------------------------------------
 // Sub-sección: Checklist plantilla
 // ---------------------------------------------------------------------------
+type PlantillaItem = {
+  id: string; etiqueta: string; tipo_dato: string
+  requerido: boolean; orden: number; seccion: string
+}
+type PlantillaData = {
+  id: string; nombre: string; resumen_template: string | null
+  checklist_plantilla_items: PlantillaItem[]
+}
+
+const SECCION_BADGE: Record<string, string> = {
+  documentos: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  datos: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+}
+
 function ChecklistSection({ prepagaId }: { prepagaId: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [plantillas, setPlantillas] = useState<{
-    id: string; nombre: string
-    checklist_plantilla_items: { id: string; etiqueta: string; tipo_dato: string; requerido: boolean; orden: number }[]
-  }[]>([])
+  const [plantillas, setPlantillas] = useState<PlantillaData[]>([])
   const [cargado, setCargado] = useState(false)
   const [plantillaSeleccionada, setPlantillaSeleccionada] = useState<string | null>(null)
-  const [nuevoItem, setNuevoItem] = useState({ etiqueta: '', tipo_dato: 'check' as const, requerido: true })
+  const [nuevoItem, setNuevoItem] = useState({
+    etiqueta: '', tipo_dato: 'check' as 'check' | 'texto' | 'archivo' | 'fecha' | 'numero',
+    requerido: true, seccion: 'documentos' as 'documentos' | 'datos',
+  })
+  const [templateEditando, setTemplateEditando] = useState(false)
+  const [templateValor, setTemplateValor] = useState('')
 
   async function cargar() {
     if (cargado) return
     const data = await getPlantillasDePrepaga(prepagaId)
-    setPlantillas(data as typeof plantillas)
-    if (data.length > 0) setPlantillaSeleccionada(data[0].id)
+    setPlantillas(data as unknown as PlantillaData[])
+    if (data.length > 0) {
+      setPlantillaSeleccionada(data[0].id)
+      setTemplateValor((data[0] as unknown as PlantillaData).resumen_template ?? '')
+    }
     setCargado(true)
+  }
+
+  function handleSeleccionarPlantilla(id: string) {
+    setPlantillaSeleccionada(id)
+    const p = plantillas.find(pl => pl.id === id)
+    setTemplateValor(p?.resumen_template ?? '')
+    setTemplateEditando(false)
   }
 
   async function handleAgregarItem(e: React.FormEvent) {
@@ -413,9 +440,9 @@ function ChecklistSection({ prepagaId }: { prepagaId: string }) {
       })
       if (res.error) { toast.error(res.error); return }
       toast.success('Ítem agregado')
-      setNuevoItem({ etiqueta: '', tipo_dato: 'check', requerido: true })
+      setNuevoItem({ etiqueta: '', tipo_dato: 'check', requerido: true, seccion: 'documentos' })
       const data = await getPlantillasDePrepaga(prepagaId)
-      setPlantillas(data as typeof plantillas)
+      setPlantillas(data as unknown as PlantillaData[])
       router.refresh()
     })
   }
@@ -425,8 +452,20 @@ function ChecklistSection({ prepagaId }: { prepagaId: string }) {
       const res = await eliminarItemPlantilla(id)
       if (res.error) { toast.error(res.error); return }
       const data = await getPlantillasDePrepaga(prepagaId)
-      setPlantillas(data as typeof plantillas)
+      setPlantillas(data as unknown as PlantillaData[])
       router.refresh()
+    })
+  }
+
+  async function handleGuardarTemplate() {
+    if (!plantillaSeleccionada) return
+    startTransition(async () => {
+      const res = await actualizarResumenTemplate(plantillaSeleccionada, templateValor)
+      if (res.error) { toast.error(res.error); return }
+      toast.success('Template de resumen guardado')
+      setTemplateEditando(false)
+      const data = await getPlantillasDePrepaga(prepagaId)
+      setPlantillas(data as unknown as PlantillaData[])
     })
   }
 
@@ -443,48 +482,105 @@ function ChecklistSection({ prepagaId }: { prepagaId: string }) {
       </h4>
 
       {cargado && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {plantillas.length > 1 && (
-            <select value={plantillaSeleccionada ?? ''} onChange={e => setPlantillaSeleccionada(e.target.value)}
+            <select value={plantillaSeleccionada ?? ''} onChange={e => handleSeleccionarPlantilla(e.target.value)}
               className="px-3 py-1.5 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none">
               {plantillas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           )}
 
           {plantillaActual && (
-            <div className="space-y-1.5">
-              {plantillaActual.checklist_plantilla_items
-                .sort((a, b) => a.orden - b.orden)
-                .map(item => (
-                  <div key={item.id} className="flex items-center gap-2 text-sm bg-slate-50 dark:bg-white/5 rounded-xl px-3 py-2">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.requerido ? 'bg-blue-500' : 'bg-slate-300'}`} />
-                    <span className="flex-1 text-slate-800 dark:text-slate-200">{item.etiqueta}</span>
-                    <span className="text-xs text-slate-400">{item.tipo_dato}</span>
-                    <button onClick={() => handleEliminarItem(item.id)} disabled={isPending}
-                      className="text-rose-500 hover:text-rose-700 transition-colors p-0.5">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
+            <>
+              {/* Ítems del checklist */}
+              <div className="space-y-1.5">
+                {plantillaActual.checklist_plantilla_items
+                  .sort((a, b) => a.orden - b.orden)
+                  .map(item => (
+                    <div key={item.id} className="flex items-center gap-2 text-sm bg-slate-50 dark:bg-white/5 rounded-xl px-3 py-2">
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.requerido ? 'bg-blue-500' : 'bg-slate-300'}`} />
+                      <span className="flex-1 text-slate-800 dark:text-slate-200">{item.etiqueta}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${SECCION_BADGE[item.seccion] ?? SECCION_BADGE.documentos}`}>
+                        {item.seccion === 'datos' ? 'dato' : 'doc'}
+                      </span>
+                      <span className="text-xs text-slate-400">{item.tipo_dato}</span>
+                      <button onClick={() => handleEliminarItem(item.id)} disabled={isPending}
+                        className="text-rose-500 hover:text-rose-700 transition-colors p-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
 
-              <form onSubmit={handleAgregarItem} className="flex items-center gap-2 mt-2">
-                <input required value={nuevoItem.etiqueta} onChange={e => setNuevoItem(n => ({ ...n, etiqueta: e.target.value }))}
-                  placeholder="Etiqueta del ítem"
-                  className="flex-1 px-3 py-1.5 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
-                <select value={nuevoItem.tipo_dato} onChange={e => setNuevoItem(n => ({ ...n, tipo_dato: e.target.value as typeof nuevoItem.tipo_dato }))}
-                  className="px-2 py-1.5 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none">
-                  {['check', 'texto', 'archivo', 'fecha', 'numero'].map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <label className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
-                  <input type="checkbox" checked={nuevoItem.requerido} onChange={e => setNuevoItem(n => ({ ...n, requerido: e.target.checked }))} />
-                  Req.
-                </label>
-                <button type="submit" disabled={isPending}
-                  className="px-3 py-1.5 text-sm font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1">
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </form>
-            </div>
+                <form onSubmit={handleAgregarItem} className="flex flex-wrap items-center gap-2 mt-2">
+                  <input required value={nuevoItem.etiqueta} onChange={e => setNuevoItem(n => ({ ...n, etiqueta: e.target.value }))}
+                    placeholder="Etiqueta del ítem"
+                    className="flex-1 min-w-32 px-3 py-1.5 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                  <select value={nuevoItem.seccion} onChange={e => setNuevoItem(n => ({ ...n, seccion: e.target.value as 'documentos' | 'datos' }))}
+                    className="px-2 py-1.5 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none">
+                    <option value="documentos">Documentos</option>
+                    <option value="datos">Datos</option>
+                  </select>
+                  <select value={nuevoItem.tipo_dato} onChange={e => setNuevoItem(n => ({ ...n, tipo_dato: e.target.value as typeof nuevoItem.tipo_dato }))}
+                    className="px-2 py-1.5 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none">
+                    {['check', 'texto', 'archivo', 'fecha', 'numero'].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <label className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+                    <input type="checkbox" checked={nuevoItem.requerido} onChange={e => setNuevoItem(n => ({ ...n, requerido: e.target.checked }))} />
+                    Req.
+                  </label>
+                  <button type="submit" disabled={isPending}
+                    className="px-3 py-1.5 text-sm font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+              </div>
+
+              {/* Template de resumen */}
+              <div className="border-t border-slate-200 dark:border-white/10 pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Template de resumen
+                  </p>
+                  {!templateEditando && (
+                    <button onClick={() => setTemplateEditando(true)}
+                      className="text-xs text-blue-600 hover:underline">
+                      {plantillaActual.resumen_template ? 'Editar' : '+ Agregar template'}
+                    </button>
+                  )}
+                </div>
+
+                {templateEditando ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={templateValor}
+                      onChange={e => setTemplateValor(e.target.value)}
+                      rows={8}
+                      placeholder={'Escribí el template con variables entre dobles llaves.\nEjemplo:\nPREPAGA {{prepaga}}\nPLAN {{plan_codigo}}\n{{condicion}}\n\nTITULAR: {{titular_nombre}}\nDNI: {{titular_dni}}\n\nDato específico: {{datos.nombre_del_campo}}'}
+                      className="w-full text-xs font-mono px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                    />
+                    <p className="text-xs text-slate-400">
+                      Variables: {'{{plan_codigo}}'}, {'{{cuota}}'}, {'{{condicion}}'}, {'{{capitas}}'}, {'{{aportes}}'}, {'{{sueldo_bruto}}'}, {'{{periodo}}'}, {'{{titular_nombre}}'}, {'{{titular_dni}}'}, {'{{titular_cuil}}'}, {'{{titular_edad}}'}, {'{{titular_peso}}'}, {'{{titular_altura}}'}, {'{{datos.etiqueta_normalizada}}'}
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={handleGuardarTemplate} disabled={isPending}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Guardar
+                      </button>
+                      <button onClick={() => { setTemplateEditando(false); setTemplateValor(plantillaActual.resumen_template ?? '') }}
+                        className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : plantillaActual.resumen_template ? (
+                  <pre className="text-xs font-mono text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/5 rounded-xl p-3 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                    {plantillaActual.resumen_template}
+                  </pre>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">Sin template — usa el formato genérico.</p>
+                )}
+              </div>
+            </>
           )}
         </div>
       )}

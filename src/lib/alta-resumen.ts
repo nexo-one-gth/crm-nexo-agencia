@@ -1,7 +1,9 @@
 // ---------------------------------------------------------------------------
 // Generador del "resumen del trámite" que se envía a procesar a la prepaga.
-// El formato varía por prepaga; hoy está definido Sancor Salud (piloto) y hay
-// un formato genérico de fallback para el resto.
+// El formato puede ser:
+//   a) Plantilla configurable por prepaga (resumen_template con {{variables}})
+//   b) Formato específico hardcodeado (Sancor Salud — legado)
+//   c) Formato genérico de fallback
 // ---------------------------------------------------------------------------
 
 export type ResumenIntegrante = {
@@ -33,6 +35,13 @@ export type ResumenAlta = {
   periodoAportes: string | null
 }
 
+export type DatoItem = {
+  etiqueta: string
+  valor_texto: string | null
+  valor_numero: number | null
+  valor_fecha: string | null
+}
+
 // --- Helpers de formato -----------------------------------------------------
 
 function money(n: number | null | undefined): string {
@@ -58,6 +67,63 @@ function labelRol(rol: string, indice: number): string {
 }
 
 const SEP = '-'.repeat(40)
+
+// --- Motor de plantilla con interpolación {{variable}} ----------------------
+
+function buildVars(
+  alta: ResumenAlta,
+  integrantes: ResumenIntegrante[],
+  datosItems: DatoItem[]
+): Record<string, string> {
+  const titular = integrantes.find(i => i.rol === 'titular')
+  const otros = integrantes.filter(i => i.rol !== 'titular').sort((a, b) => a.orden - b.orden)
+
+  const vars: Record<string, string> = {
+    prepaga:        alta.prepagaNombre ?? '',
+    plan_nombre:    alta.planNombre ?? '',
+    plan_codigo:    alta.planCodigo ?? alta.planNombre ?? '',
+    condicion:      alta.condicion ?? '',
+    cuota:          money(alta.cuota),
+    capitas:        alta.cantidadCapitas?.toString() ?? '',
+    aportes:        money(alta.aportesPromedio),
+    sueldo_bruto:   money(alta.sueldoBruto),
+    periodo:        alta.periodoAportes ?? '',
+
+    titular_nombre:    (titular?.nombre ?? '').toUpperCase(),
+    titular_dni:       titular?.dni ?? '',
+    titular_cuil:      titular?.cuil ?? '',
+    titular_edad:      titular?.edad?.toString() ?? '',
+    titular_peso:      titular?.peso_kg?.toString() ?? '',
+    titular_altura:    titular?.altura_cm?.toString() ?? '',
+    titular_domicilio: titular?.domicilio ?? '',
+    titular_tel:       titular?.telefono ?? '',
+    titular_email:     titular?.email ?? '',
+    titular_fecha_nac: fecha(titular?.fecha_nac ?? null),
+  }
+
+  // Integrantes no-titular: integrante_2_nombre, integrante_3_dni, etc.
+  otros.forEach((integ, idx) => {
+    const n = idx + 2 // empieza en 2
+    vars[`integrante_${n}_nombre`]    = (integ.nombre ?? '').toUpperCase()
+    vars[`integrante_${n}_dni`]       = integ.dni ?? ''
+    vars[`integrante_${n}_cuil`]      = integ.cuil ?? ''
+    vars[`integrante_${n}_edad`]      = integ.edad?.toString() ?? ''
+    vars[`integrante_${n}_fecha_nac`] = fecha(integ.fecha_nac ?? null)
+    vars[`integrante_${n}_rol`]       = integ.rol.toUpperCase()
+  })
+
+  // Datos específicos de la prepaga → clave: datos.<etiqueta_normalizada>
+  for (const item of datosItems) {
+    const clave = 'datos.' + item.etiqueta.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_.]/g, '')
+    vars[clave] = item.valor_texto ?? item.valor_numero?.toString() ?? item.valor_fecha ?? ''
+  }
+
+  return vars
+}
+
+function interpolar(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{([^}]+)\}\}/g, (_, key: string) => vars[key.trim()] ?? '')
+}
 
 // --- Sancor Salud -----------------------------------------------------------
 
@@ -85,7 +151,6 @@ function resumenSancor(alta: ResumenAlta, integrantes: ResumenIntegrante[]): str
   }
   L.push('')
 
-  // Titular
   if (titular) {
     L.push(labelRol('titular', 1))
     L.push(`Nombre: ${(titular.nombre ?? '—').toUpperCase()}`)
@@ -99,7 +164,6 @@ function resumenSancor(alta: ResumenAlta, integrantes: ResumenIntegrante[]): str
     if (titular.email) L.push(`Email: ${titular.email.toUpperCase()}`)
   }
 
-  // Grupo familiar
   const contadores: Record<string, number> = {}
   for (const integ of otros) {
     contadores[integ.rol] = (contadores[integ.rol] ?? 0) + 1
@@ -115,7 +179,7 @@ function resumenSancor(alta: ResumenAlta, integrantes: ResumenIntegrante[]): str
   return L.join('\n')
 }
 
-// --- Genérico (resto de prepagas) ------------------------------------------
+// --- Genérico (resto de prepagas sin template configurado) ------------------
 
 function resumenGenerico(alta: ResumenAlta, integrantes: ResumenIntegrante[]): string {
   const titular = integrantes.find(i => i.rol === 'titular')
@@ -163,12 +227,19 @@ function resumenGenerico(alta: ResumenAlta, integrantes: ResumenIntegrante[]): s
   return L.join('\n')
 }
 
-// --- Dispatcher por prepaga -------------------------------------------------
+// --- Dispatcher principal ---------------------------------------------------
 
 export function generarResumenTexto(
   alta: ResumenAlta,
-  integrantes: ResumenIntegrante[]
+  integrantes: ResumenIntegrante[],
+  datosItems: DatoItem[] = [],
+  resumenTemplate?: string | null
 ): string {
+  // Template configurable desde admin: tiene prioridad sobre todo
+  if (resumenTemplate) {
+    return interpolar(resumenTemplate, buildVars(alta, integrantes, datosItems))
+  }
+  // Formato hardcodeado por slug (legado — reemplazar con templates configurados)
   switch (alta.prepagaSlug) {
     case 'sancor-salud':
       return resumenSancor(alta, integrantes)

@@ -10,7 +10,7 @@ import {
   guardarDocResumen,
   type DriveItem,
 } from '@/lib/google-drive'
-import { generarResumenTexto, type ResumenIntegrante } from '@/lib/alta-resumen'
+import { generarResumenTexto, type ResumenIntegrante, type DatoItem } from '@/lib/alta-resumen'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 
@@ -384,6 +384,7 @@ export async function agregarItemPlantilla(params: {
   tipo_dato: 'check' | 'texto' | 'archivo' | 'fecha' | 'numero'
   requerido: boolean
   orden: number
+  seccion?: 'documentos' | 'datos'
 }) {
   const guard = await assertAdmin()
   if (guard.error) return { error: guard.error }
@@ -391,13 +392,28 @@ export async function agregarItemPlantilla(params: {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('checklist_plantilla_items')
-    .insert(params)
+    .insert({ ...params, seccion: params.seccion ?? 'documentos' })
     .select()
     .single()
 
   if (error) return { error: error.message }
   revalidatePath('/admin/prepagas')
   return { data }
+}
+
+export async function actualizarResumenTemplate(plantillaId: string, template: string) {
+  const guard = await assertAdmin()
+  if (guard.error) return { error: guard.error }
+
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from('checklist_plantillas') as any)
+    .update({ resumen_template: template || null })
+    .eq('id', plantillaId)
+
+  if (error) return { error: error.message }
+  revalidatePath('/admin/prepagas')
+  return { success: true }
 }
 
 export async function eliminarItemPlantilla(id: string) {
@@ -478,21 +494,34 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
   const parsed = IniciarAltaSchema.safeParse(formData)
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
-  // Buscar plantilla activa para esta prepaga (y tipo_alta si se especificó)
-  let plantillaQuery = supabase
-    .from('checklist_plantillas')
-    .select('id, checklist_plantilla_items(*)')
-    .eq('prepaga_id', parsed.data.prepaga_id)
-    .eq('activa', true)
+  // Buscar plantilla activa: primero la específica por tipo_alta, luego la genérica.
+  // Esto permite tener plantillas distintas por tipo de contratación (particular,
+  // relacion_dependencia, etc.) con un fallback genérico (tipo_alta IS NULL).
+  let plantilla = null
 
   if (parsed.data.tipo_alta) {
-    plantillaQuery = plantillaQuery.eq('tipo_alta', parsed.data.tipo_alta)
-  } else {
-    plantillaQuery = plantillaQuery.is('tipo_alta', null)
+    const { data } = await supabase
+      .from('checklist_plantillas')
+      .select('id, checklist_plantilla_items(*)')
+      .eq('prepaga_id', parsed.data.prepaga_id)
+      .eq('tipo_alta', parsed.data.tipo_alta)
+      .eq('activa', true)
+      .limit(1)
+      .maybeSingle()
+    plantilla = data
   }
 
-  const { data: plantillas } = await plantillaQuery.limit(1)
-  const plantilla = plantillas?.[0]
+  if (!plantilla) {
+    const { data } = await supabase
+      .from('checklist_plantillas')
+      .select('id, checklist_plantilla_items(*)')
+      .eq('prepaga_id', parsed.data.prepaga_id)
+      .is('tipo_alta', null)
+      .eq('activa', true)
+      .limit(1)
+      .maybeSingle()
+    plantilla = data
+  }
 
   // Crear el alta
   const { data: alta, error: altaError } = await supabase
@@ -511,16 +540,17 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
 
   if (altaError) return { error: altaError.message }
 
-  // Copiar ítems de la plantilla (snapshot)
+  // Copiar ítems de la plantilla (snapshot — incluye sección para filtrado en UI)
   if (plantilla?.checklist_plantilla_items?.length) {
     const items = plantilla.checklist_plantilla_items.map((item: {
-      id: string; etiqueta: string; tipo_dato: string; requerido: boolean
+      id: string; etiqueta: string; tipo_dato: string; requerido: boolean; seccion?: string
     }) => ({
       alta_id: alta.id,
       plantilla_item_id: item.id,
       etiqueta: item.etiqueta,
       tipo_dato: item.tipo_dato,
       requerido: item.requerido,
+      seccion: item.seccion ?? 'documentos',
     }))
     await supabase.from('alta_items').insert(items)
   }
@@ -1165,6 +1195,13 @@ export async function guardarDatosComerciales(input: z.infer<typeof DatosComerci
   if (!parsed.success) return { error: parsed.error.issues[0].message }
   const { alta_id, ...campos } = parsed.data
 
+  const { data: altaCheck } = await supabase
+    .from('altas').select('estado').eq('id', alta_id).single()
+  if (!altaCheck) return { error: 'Alta no encontrada' }
+  if (['aprobada', 'rechazada'].includes(altaCheck.estado)) {
+    return { error: 'El alta ya no puede editarse en su estado actual' }
+  }
+
   const { error } = await supabase.from('altas').update(campos).eq('id', alta_id)
   if (error) return { error: error.message }
   revalidatePath(`/altas/${alta_id}`)
@@ -1267,13 +1304,32 @@ export async function generarResumenAlta(altaId: string) {
     .from('altas')
     .select(`
       id, drive_folder_id, plan_codigo, condicion, cantidad_capitas, cuota,
-      aportes_promedio, sueldo_bruto, periodo_aportes,
+      aportes_promedio, sueldo_bruto, periodo_aportes, plantilla_id,
       prepagas(nombre, slug),
       prepaga_planes(nombre)
     `)
     .eq('id', altaId)
     .single()
   if (!alta) return { error: 'Alta no encontrada' }
+
+  // Cargar el template de resumen de la plantilla (si tiene)
+  let resumenTemplate: string | null = null
+  if (alta.plantilla_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: plantilla } = await (supabase.from('checklist_plantillas') as any)
+      .select('resumen_template')
+      .eq('id', alta.plantilla_id)
+      .single()
+    resumenTemplate = (plantilla as { resumen_template?: string | null })?.resumen_template ?? null
+  }
+
+  // Cargar datos específicos (ítems con seccion='datos') para interpolación
+  const { data: datosRaw } = await supabase
+    .from('alta_items')
+    .select('etiqueta, valor_texto, valor_numero, valor_fecha')
+    .eq('alta_id', altaId)
+    .eq('seccion', 'datos')
+  const datosItems = (datosRaw ?? []) as DatoItem[]
 
   const integrantes = (await getIntegrantes(altaId)) as unknown as ResumenIntegrante[]
   const prepaga = alta.prepagas as { nombre: string; slug: string } | null
@@ -1292,7 +1348,9 @@ export async function generarResumenAlta(altaId: string) {
       sueldoBruto: alta.sueldo_bruto,
       periodoAportes: alta.periodo_aportes,
     },
-    integrantes
+    integrantes,
+    datosItems,
+    resumenTemplate
   )
 
   // Guardar en Drive (best-effort) si hay carpeta

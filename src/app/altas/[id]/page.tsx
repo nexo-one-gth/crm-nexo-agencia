@@ -9,6 +9,7 @@ import { ChecklistInteractivo } from './ChecklistInteractivo'
 import { CambiarEstadoAlta } from './CambiarEstadoAlta'
 import { CarpetaDriveBanner } from './CarpetaDriveBanner'
 import { DatosComerciales } from './DatosComerciales'
+import { DatosEspecificos } from './DatosEspecificos'
 import { IntegrantesEditor, type Integrante } from './IntegrantesEditor'
 import { ResumenTramite } from './ResumenTramite'
 import { format } from 'date-fns'
@@ -47,7 +48,7 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
     .eq('alta_id', id)
     .maybeSingle()
 
-  const items = (alta.alta_items ?? []) as {
+  const allItems = (alta.alta_items ?? []) as {
     id: string
     etiqueta: string
     tipo_dato: string
@@ -58,7 +59,12 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
     valor_numero: number | null
     archivo_path: string | null
     drive_file_url: string | null
+    seccion?: string
   }[]
+
+  // Separar ítems de documentación (archivos/checks) de datos específicos por prepaga
+  const itemsDatos = allItems.filter(i => i.seccion === 'datos')
+  const items = allItems.filter(i => i.seccion !== 'datos')
 
   const requeridos = items.filter(i => i.requerido).length
   const completados = items.filter(i => i.requerido && i.completado).length
@@ -186,10 +192,17 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
         }}
       />
 
+      {/* Datos específicos de la prepaga (configurados en admin/prepagas) */}
+      <DatosEspecificos
+        altaId={alta.id}
+        prepagaNombre={prepaga?.nombre ?? ''}
+        items={itemsDatos}
+      />
+
       {/* Integrantes */}
       <IntegrantesEditor altaId={alta.id} integrantes={integrantes} />
 
-      {/* Checklist interactivo */}
+      {/* Checklist interactivo (solo documentos) */}
       <ChecklistInteractivo altaId={alta.id} items={items} />
 
       {/* Resumen del trámite */}
