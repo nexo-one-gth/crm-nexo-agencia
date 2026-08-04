@@ -1,12 +1,16 @@
 import { createClient } from '@/lib/supabase/server'
 import { isAdminRole } from '@/lib/supabase/assert-admin'
 import { redirect, notFound } from 'next/navigation'
-import { getAltaById } from '@/app/actions/prepaga-actions'
+import { getAltaById, getIntegrantes } from '@/app/actions/prepaga-actions'
 import Link from 'next/link'
 import { ArrowLeft, Phone, User, BadgeDollarSign } from 'lucide-react'
 import { ChecklistProgress } from '@/components/prepagas/ChecklistProgress'
 import { ChecklistInteractivo } from './ChecklistInteractivo'
 import { CambiarEstadoAlta } from './CambiarEstadoAlta'
+import { CarpetaDriveBanner } from './CarpetaDriveBanner'
+import { DatosComerciales } from './DatosComerciales'
+import { IntegrantesEditor, type Integrante } from './IntegrantesEditor'
+import { ResumenTramite } from './ResumenTramite'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -32,6 +36,8 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
   const alta = await getAltaById(id)
   if (!alta) notFound()
 
+  const integrantes = (await getIntegrantes(id)) as unknown as Integrante[]
+
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   const esAdmin = isAdminRole(profile?.role)
 
@@ -51,6 +57,7 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
     valor_fecha: string | null
     valor_numero: number | null
     archivo_path: string | null
+    drive_file_url: string | null
   }[]
 
   const requeridos = items.filter(i => i.requerido).length
@@ -96,6 +103,9 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
           </span>
         </div>
       </div>
+
+      {/* Carpeta de Drive del trámite */}
+      <CarpetaDriveBanner altaId={alta.id} driveFolderUrl={alta.drive_folder_url ?? null} />
 
       {/* Datos del prospecto */}
       <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/10 p-5">
@@ -162,8 +172,32 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
         </section>
       )}
 
+      {/* Datos comerciales del trámite */}
+      <DatosComerciales
+        altaId={alta.id}
+        datos={{
+          plan_codigo: alta.plan_codigo ?? null,
+          condicion: alta.condicion ?? null,
+          cantidad_capitas: alta.cantidad_capitas ?? null,
+          cuota: alta.cuota ?? null,
+          aportes_promedio: alta.aportes_promedio ?? null,
+          sueldo_bruto: alta.sueldo_bruto ?? null,
+          periodo_aportes: alta.periodo_aportes ?? null,
+        }}
+      />
+
+      {/* Integrantes */}
+      <IntegrantesEditor altaId={alta.id} integrantes={integrantes} />
+
       {/* Checklist interactivo */}
       <ChecklistInteractivo altaId={alta.id} items={items} />
+
+      {/* Resumen del trámite */}
+      <ResumenTramite
+        altaId={alta.id}
+        resumenInicial={alta.resumen_texto ?? null}
+        driveUrlInicial={alta.resumen_drive_url ?? null}
+      />
 
       {/* Cambiar estado */}
       <CambiarEstadoAlta altaId={alta.id} estadoActual={alta.estado as 'en_proceso' | 'enviada' | 'observada' | 'aprobada' | 'rechazada'} observaciones={alta.observaciones} isAdmin={esAdmin} />

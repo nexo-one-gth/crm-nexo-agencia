@@ -82,6 +82,77 @@ export type Database = {
           },
         ]
       }
+      alta_integrantes: {
+        Row: {
+          alta_id: string
+          altura_cm: number | null
+          created_at: string
+          cuil: string | null
+          dni: string | null
+          domicilio: string | null
+          edad: number | null
+          email: string | null
+          fecha_nac: string | null
+          id: string
+          nombre: string | null
+          observaciones: string | null
+          orden: number
+          parentesco: string | null
+          peso_kg: number | null
+          rol: string
+          telefono: string | null
+          updated_at: string
+        }
+        Insert: {
+          alta_id: string
+          altura_cm?: number | null
+          created_at?: string
+          cuil?: string | null
+          dni?: string | null
+          domicilio?: string | null
+          edad?: number | null
+          email?: string | null
+          fecha_nac?: string | null
+          id?: string
+          nombre?: string | null
+          observaciones?: string | null
+          orden?: number
+          parentesco?: string | null
+          peso_kg?: number | null
+          rol?: string
+          telefono?: string | null
+          updated_at?: string
+        }
+        Update: {
+          alta_id?: string
+          altura_cm?: number | null
+          created_at?: string
+          cuil?: string | null
+          dni?: string | null
+          domicilio?: string | null
+          edad?: number | null
+          email?: string | null
+          fecha_nac?: string | null
+          id?: string
+          nombre?: string | null
+          observaciones?: string | null
+          orden?: number
+          parentesco?: string | null
+          peso_kg?: number | null
+          rol?: string
+          telefono?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alta_integrantes_alta_id_fkey"
+            columns: ["alta_id"]
+            isOneToOne: false
+            referencedRelation: "altas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alta_items: {
         Row: {
           alta_id: string
@@ -89,6 +160,8 @@ export type Database = {
           completado: boolean
           completado_at: string | null
           completado_by: string | null
+          drive_file_id: string | null
+          drive_file_url: string | null
           etiqueta: string
           id: string
           plantilla_item_id: string | null
@@ -104,6 +177,8 @@ export type Database = {
           completado?: boolean
           completado_at?: string | null
           completado_by?: string | null
+          drive_file_id?: string | null
+          drive_file_url?: string | null
           etiqueta: string
           id?: string
           plantilla_item_id?: string | null
@@ -119,6 +194,8 @@ export type Database = {
           completado?: boolean
           completado_at?: string | null
           completado_by?: string | null
+          drive_file_id?: string | null
+          drive_file_url?: string | null
           etiqueta?: string
           id?: string
           plantilla_item_id?: string | null
@@ -154,44 +231,80 @@ export type Database = {
       }
       altas: {
         Row: {
+          aportes_promedio: number | null
           asesor_id: string
+          cantidad_capitas: number | null
+          condicion: string | null
           created_at: string
+          cuota: number | null
+          drive_folder_id: string | null
+          drive_folder_url: string | null
           enviada_at: string | null
           estado: string
           id: string
           lead_id: string
           observaciones: string | null
+          periodo_aportes: string | null
+          plan_codigo: string | null
           plan_id: string | null
           plantilla_id: string | null
           prepaga_id: string
+          resumen_drive_id: string | null
+          resumen_drive_url: string | null
+          resumen_texto: string | null
+          sueldo_bruto: number | null
           tipo_alta: string | null
           updated_at: string
         }
         Insert: {
+          aportes_promedio?: number | null
           asesor_id: string
+          cantidad_capitas?: number | null
+          condicion?: string | null
           created_at?: string
+          cuota?: number | null
+          drive_folder_id?: string | null
+          drive_folder_url?: string | null
           enviada_at?: string | null
           estado?: string
           id?: string
           lead_id: string
           observaciones?: string | null
+          periodo_aportes?: string | null
+          plan_codigo?: string | null
           plan_id?: string | null
           plantilla_id?: string | null
           prepaga_id: string
+          resumen_drive_id?: string | null
+          resumen_drive_url?: string | null
+          resumen_texto?: string | null
+          sueldo_bruto?: number | null
           tipo_alta?: string | null
           updated_at?: string
         }
         Update: {
+          aportes_promedio?: number | null
           asesor_id?: string
+          cantidad_capitas?: number | null
+          condicion?: string | null
           created_at?: string
+          cuota?: number | null
+          drive_folder_id?: string | null
+          drive_folder_url?: string | null
           enviada_at?: string | null
           estado?: string
           id?: string
           lead_id?: string
           observaciones?: string | null
+          periodo_aportes?: string | null
+          plan_codigo?: string | null
           plan_id?: string | null
           plantilla_id?: string | null
           prepaga_id?: string
+          resumen_drive_id?: string | null
+          resumen_drive_url?: string | null
+          resumen_texto?: string | null
+          sueldo_bruto?: number | null
           tipo_alta?: string | null
           updated_at?: string
         }

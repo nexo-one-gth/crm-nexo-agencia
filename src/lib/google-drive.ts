@@ -1,5 +1,6 @@
 import { google } from 'googleapis'
 import { unstable_cache } from 'next/cache'
+import { Readable } from 'node:stream'
 
 export type DriveItem = {
   id: string
@@ -18,6 +19,154 @@ function getAuth() {
     },
     scopes: ['https://www.googleapis.com/auth/drive.readonly'],
   })
+}
+
+// Auth con permiso de escritura. Se usa para crear la carpeta del trámite y
+// subir la documentación desde el CRM. IMPORTANTE: el service account no tiene
+// cuota de almacenamiento propia, así que las carpetas destino deben vivir en
+// una Unidad Compartida (Shared Drive) de la que el service account sea miembro.
+function getWriteAuth() {
+  return new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    },
+    scopes: ['https://www.googleapis.com/auth/drive'],
+  })
+}
+
+export type DriveArchivo = { id: string; nombre: string; urlVista: string }
+
+// Crea una subcarpeta dentro de `parentId` y devuelve su id + link de vista.
+// Si ya existe una carpeta con el mismo nombre en ese padre, la reutiliza
+// (idempotente: evita duplicar carpetas si se reintenta el alta).
+export async function crearCarpetaDrive(
+  parentId: string,
+  nombre: string
+): Promise<DriveArchivo> {
+  const drive = google.drive({ version: 'v3', auth: getWriteAuth() })
+
+  const nombreEscapado = nombre.replace(/'/g, "\\'")
+  const existente = await drive.files.list({
+    q: `'${parentId}' in parents and name = '${nombreEscapado}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+    fields: 'files(id, name, webViewLink)',
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  const yaExiste = existente.data.files?.[0]
+  if (yaExiste?.id) {
+    return {
+      id: yaExiste.id,
+      nombre: yaExiste.name ?? nombre,
+      urlVista: yaExiste.webViewLink ?? `https://drive.google.com/drive/folders/${yaExiste.id}`,
+    }
+  }
+
+  const res = await drive.files.create({
+    requestBody: {
+      name: nombre,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId],
+    },
+    fields: 'id, name, webViewLink',
+    supportsAllDrives: true,
+  })
+  return {
+    id: res.data.id!,
+    nombre: res.data.name ?? nombre,
+    urlVista: res.data.webViewLink ?? `https://drive.google.com/drive/folders/${res.data.id}`,
+  }
+}
+
+// Sube un archivo (buffer) a la carpeta indicada. Si ya existe uno con el
+// mismo nombre, lo reemplaza (nueva versión) para no acumular duplicados.
+export async function subirArchivoDrive(
+  folderId: string,
+  buffer: Buffer,
+  nombre: string,
+  mimeType: string
+): Promise<DriveArchivo> {
+  const drive = google.drive({ version: 'v3', auth: getWriteAuth() })
+
+  const nombreEscapado = nombre.replace(/'/g, "\\'")
+  const existente = await drive.files.list({
+    q: `'${folderId}' in parents and name = '${nombreEscapado}' and trashed = false`,
+    fields: 'files(id)',
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  const fileId = existente.data.files?.[0]?.id
+
+  const media = { mimeType, body: Readable.from(buffer) }
+
+  const res = fileId
+    ? await drive.files.update({
+        fileId,
+        media,
+        fields: 'id, name, webViewLink',
+        supportsAllDrives: true,
+      })
+    : await drive.files.create({
+        requestBody: { name: nombre, parents: [folderId] },
+        media,
+        fields: 'id, name, webViewLink',
+        supportsAllDrives: true,
+      })
+
+  return {
+    id: res.data.id!,
+    nombre: res.data.name ?? nombre,
+    urlVista: res.data.webViewLink ?? `https://drive.google.com/file/d/${res.data.id}/view`,
+  }
+}
+
+// Crea/actualiza un Google Doc a partir de texto plano dentro de una carpeta.
+// Se usa para guardar el "resumen del trámite" como documento editable.
+export async function guardarDocResumen(
+  folderId: string,
+  nombre: string,
+  texto: string
+): Promise<DriveArchivo> {
+  const drive = google.drive({ version: 'v3', auth: getWriteAuth() })
+
+  const nombreEscapado = nombre.replace(/'/g, "\\'")
+  const existente = await drive.files.list({
+    q: `'${folderId}' in parents and name = '${nombreEscapado}' and trashed = false`,
+    fields: 'files(id)',
+    pageSize: 1,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  })
+  const fileId = existente.data.files?.[0]?.id
+
+  // Subimos texto plano y dejamos que Drive lo convierta a Google Doc.
+  const media = { mimeType: 'text/plain', body: Readable.from(Buffer.from(texto, 'utf-8')) }
+
+  const res = fileId
+    ? await drive.files.update({
+        fileId,
+        media,
+        fields: 'id, name, webViewLink',
+        supportsAllDrives: true,
+      })
+    : await drive.files.create({
+        requestBody: {
+          name: nombre,
+          parents: [folderId],
+          mimeType: 'application/vnd.google-apps.document',
+        },
+        media,
+        fields: 'id, name, webViewLink',
+        supportsAllDrives: true,
+      })
+
+  return {
+    id: res.data.id!,
+    nombre: res.data.name ?? nombre,
+    urlVista: res.data.webViewLink ?? `https://drive.google.com/document/d/${res.data.id}/edit`,
+  }
 }
 
 export const listarContenidoCarpeta = unstable_cache(

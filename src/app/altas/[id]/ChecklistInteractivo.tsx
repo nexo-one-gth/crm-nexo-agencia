@@ -3,8 +3,7 @@
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Check, Square, Upload, Calendar, Hash, Type, FileText } from 'lucide-react'
-import { completarItem, subirAdjunto } from '@/app/actions/prepaga-actions'
-import { createClient } from '@/lib/supabase/client'
+import { completarItem, subirAdjuntoDrive } from '@/app/actions/prepaga-actions'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +17,7 @@ type Item = {
   valor_fecha: string | null
   valor_numero: number | null
   archivo_path: string | null
+  drive_file_url: string | null
 }
 
 interface ChecklistInteractivoProps {
@@ -65,17 +65,19 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
     })
   }
 
-  async function subirArchivo(file: File) {
-    const supabase = createClient()
-    const path = `${altaId}/${item.id}/${file.name}`
-    const { error: uploadError } = await supabase.storage
-      .from('altas-adjuntos')
-      .upload(path, file, { upsert: true })
-    if (uploadError) { toast.error('Error al subir el archivo'); return }
+  const [subiendo, setSubiendo] = useState(false)
 
-    const res = await subirAdjunto({ alta_id: altaId, item_id: item.id, archivo_path: path })
+  async function subirArchivo(file: File) {
+    setSubiendo(true)
+    const formData = new FormData()
+    formData.append('alta_id', altaId)
+    formData.append('item_id', item.id)
+    formData.append('file', file)
+
+    const res = await subirAdjuntoDrive(formData)
+    setSubiendo(false)
     if (res.error) { toast.error(res.error); return }
-    toast.success('Archivo subido')
+    toast.success('Archivo subido a Drive')
     router.refresh()
     onUpdate()
   }
@@ -120,22 +122,49 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
         {item.tipo_dato !== 'check' && (
           <div className="mt-2">
             {item.tipo_dato === 'archivo' ? (
-              <div className="flex items-center gap-2">
-                {item.archivo_path ? (
-                  <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    Archivo subido
-                  </span>
+              <div className="flex items-center gap-3">
+                {item.drive_file_url || item.archivo_path ? (
+                  <>
+                    {item.drive_file_url ? (
+                      <a
+                        href={item.drive_file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:underline"
+                      >
+                        <Check className="w-3 h-3" />
+                        Ver en Drive
+                      </a>
+                    ) : (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        Archivo subido
+                      </span>
+                    )}
+                    <label className="cursor-pointer">
+                      <span className="text-xs text-slate-400 hover:text-blue-600 transition-colors">
+                        Reemplazar
+                      </span>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        className="hidden"
+                        disabled={subiendo}
+                        onChange={e => e.target.files?.[0] && subirArchivo(e.target.files[0])}
+                      />
+                    </label>
+                  </>
                 ) : (
-                  <label className="cursor-pointer">
+                  <label className={cn('cursor-pointer', subiendo && 'pointer-events-none opacity-60')}>
                     <span className="text-xs px-3 py-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors flex items-center gap-1.5">
                       <Upload className="w-3 h-3" />
-                      Subir archivo
+                      {subiendo ? 'Subiendo...' : 'Subir archivo'}
                     </span>
                     <input
                       type="file"
                       accept=".pdf,.jpg,.jpeg,.png,.webp"
                       className="hidden"
+                      disabled={subiendo}
                       onChange={e => e.target.files?.[0] && subirArchivo(e.target.files[0])}
                     />
                   </label>

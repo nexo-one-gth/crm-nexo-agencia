@@ -3,7 +3,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdmin, isAdminRole } from '@/lib/supabase/assert-admin'
-import { listarContenidoCarpeta, type DriveItem } from '@/lib/google-drive'
+import {
+  listarContenidoCarpeta,
+  crearCarpetaDrive,
+  subirArchivoDrive,
+  guardarDocResumen,
+  type DriveItem,
+} from '@/lib/google-drive'
+import { generarResumenTexto, type ResumenIntegrante } from '@/lib/alta-resumen'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 
@@ -518,6 +525,49 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
     await supabase.from('alta_items').insert(items)
   }
 
+  // Prefill: crear el integrante titular con los datos que ya tiene el lead
+  const { data: leadInfo } = await supabase
+    .from('leads')
+    .select('first_name, last_name, phone, cuil')
+    .eq('id', parsed.data.lead_id)
+    .single()
+
+  await supabase.from('alta_integrantes').insert({
+    alta_id: alta.id,
+    rol: 'titular',
+    orden: 0,
+    nombre: [leadInfo?.first_name, leadInfo?.last_name].filter(Boolean).join(' ') || null,
+    cuil: leadInfo?.cuil ?? null,
+    telefono: leadInfo?.phone ?? null,
+  })
+
+  // Crear la carpeta del trámite en Drive (best-effort: si falla, el alta igual
+  // se crea y se puede reintentar con crearCarpetaAlta).
+  try {
+    const { data: prepaga } = await supabase
+      .from('prepagas')
+      .select('drive_folder_id')
+      .eq('id', parsed.data.prepaga_id)
+      .single()
+
+    if (prepaga?.drive_folder_id) {
+      const nombreCarpeta = nombreCarpetaAlta(
+        leadInfo?.first_name,
+        leadInfo?.last_name,
+        alta.id
+      )
+      const carpeta = await crearCarpetaDrive(prepaga.drive_folder_id, nombreCarpeta)
+      await supabase
+        .from('altas')
+        .update({ drive_folder_id: carpeta.id, drive_folder_url: carpeta.urlVista })
+        .eq('id', alta.id)
+      alta.drive_folder_id = carpeta.id
+      alta.drive_folder_url = carpeta.urlVista
+    }
+  } catch (error) {
+    console.error('[Alta] No se pudo crear la carpeta de Drive:', error)
+  }
+
   // Registrar actividad en el lead
   await supabase.from('activities').insert({
     lead_id: parsed.data.lead_id,
@@ -529,6 +579,60 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
   revalidatePath('/altas')
   revalidatePath(`/leads/${parsed.data.lead_id}`)
   return { data: alta }
+}
+
+// Nombre de la carpeta del trámite: "Apellido Nombre - AAAA-MM-DD".
+// Si no hay nombre, usa el id corto del alta como fallback.
+function nombreCarpetaAlta(
+  firstName?: string | null,
+  lastName?: string | null,
+  altaId?: string
+): string {
+  const fecha = new Date().toISOString().slice(0, 10)
+  const partes = [lastName, firstName].filter(Boolean).join(' ').trim()
+  const base = partes || `Alta ${altaId?.slice(0, 8) ?? ''}`.trim()
+  // Sanitizar caracteres problemáticos para nombres de carpeta
+  const limpio = base.replace(/[\\/:*?"<>|]/g, '').trim()
+  return `${limpio} - ${fecha}`
+}
+
+// (Re)crea la carpeta de Drive de un alta que no la tenga (o falló al iniciar).
+export async function crearCarpetaAlta(altaId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: alta } = await supabase
+    .from('altas')
+    .select('id, prepaga_id, drive_folder_id, leads(first_name, last_name)')
+    .eq('id', altaId)
+    .single()
+  if (!alta) return { error: 'Alta no encontrada' }
+  if (alta.drive_folder_id) return { error: 'La carpeta ya existe' }
+
+  const { data: prepaga } = await supabase
+    .from('prepagas')
+    .select('drive_folder_id')
+    .eq('id', alta.prepaga_id)
+    .single()
+  if (!prepaga?.drive_folder_id) {
+    return { error: 'La prepaga no tiene carpeta de Drive configurada' }
+  }
+
+  const lead = alta.leads as { first_name: string; last_name: string | null } | null
+  try {
+    const nombreCarpeta = nombreCarpetaAlta(lead?.first_name, lead?.last_name, alta.id)
+    const carpeta = await crearCarpetaDrive(prepaga.drive_folder_id, nombreCarpeta)
+    await supabase
+      .from('altas')
+      .update({ drive_folder_id: carpeta.id, drive_folder_url: carpeta.urlVista })
+      .eq('id', altaId)
+    revalidatePath(`/altas/${altaId}`)
+    return { data: carpeta }
+  } catch (error) {
+    console.error('[Alta] Error creando carpeta:', error)
+    return { error: 'No se pudo crear la carpeta en Drive' }
+  }
 }
 
 export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, observaciones?: string) {
@@ -962,4 +1066,257 @@ export async function subirAdjunto(params: {
   if (error) return { error: error.message }
   revalidatePath(`/altas/${params.alta_id}`)
   return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// ALTAS — subida de adjuntos a la carpeta de Drive del trámite
+// ---------------------------------------------------------------------------
+
+const MIME_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+const MAX_BYTES = 15 * 1024 * 1024 // 15 MB
+
+export async function subirAdjuntoDrive(formData: FormData) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const altaId = String(formData.get('alta_id') ?? '')
+  const itemId = String(formData.get('item_id') ?? '')
+  const file = formData.get('file')
+
+  if (!altaId || !itemId) return { error: 'Faltan datos del adjunto' }
+  if (!(file instanceof File)) return { error: 'Archivo inválido' }
+  if (file.size === 0) return { error: 'El archivo está vacío' }
+  if (file.size > MAX_BYTES) return { error: 'El archivo supera los 15 MB' }
+  if (file.type && !MIME_PERMITIDOS.includes(file.type)) {
+    return { error: 'Formato no permitido (PDF, JPG, PNG o WEBP)' }
+  }
+
+  // Buscar la carpeta de Drive del alta y la etiqueta del ítem
+  const { data: alta } = await supabase
+    .from('altas')
+    .select('id, drive_folder_id, asesor_id')
+    .eq('id', altaId)
+    .single()
+  if (!alta) return { error: 'Alta no encontrada' }
+  if (!alta.drive_folder_id) {
+    return { error: 'El alta no tiene carpeta en Drive. Creala primero desde el detalle del alta.' }
+  }
+
+  const { data: item } = await supabase
+    .from('alta_items')
+    .select('id, etiqueta')
+    .eq('id', itemId)
+    .eq('alta_id', altaId)
+    .single()
+  if (!item) return { error: 'Ítem no encontrado' }
+
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : ''
+    const etiquetaLimpia = item.etiqueta.replace(/[\\/:*?"<>|]/g, '').trim()
+    const nombreArchivo = `${etiquetaLimpia}${ext}`
+    const mime = file.type || 'application/octet-stream'
+
+    const subido = await subirArchivoDrive(alta.drive_folder_id, buffer, nombreArchivo, mime)
+
+    const { error } = await supabase
+      .from('alta_items')
+      .update({
+        completado: true,
+        drive_file_id: subido.id,
+        drive_file_url: subido.urlVista,
+        completado_by: user.id,
+        completado_at: new Date().toISOString(),
+      })
+      .eq('id', itemId)
+      .eq('alta_id', altaId)
+
+    if (error) return { error: error.message }
+    revalidatePath(`/altas/${altaId}`)
+    return { data: { url: subido.urlVista } }
+  } catch (err) {
+    console.error('[Alta] Error subiendo a Drive:', err)
+    return { error: 'No se pudo subir el archivo a Drive' }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ALTAS — datos comerciales del trámite
+// ---------------------------------------------------------------------------
+
+const DatosComercialesSchema = z.object({
+  alta_id: z.string().uuid(),
+  plan_codigo: z.string().optional().nullable(),
+  condicion: z.string().optional().nullable(),
+  cantidad_capitas: z.number().int().nonnegative().optional().nullable(),
+  cuota: z.number().nonnegative().optional().nullable(),
+  aportes_promedio: z.number().nonnegative().optional().nullable(),
+  sueldo_bruto: z.number().nonnegative().optional().nullable(),
+  periodo_aportes: z.string().optional().nullable(),
+})
+
+export async function guardarDatosComerciales(input: z.infer<typeof DatosComercialesSchema>) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const parsed = DatosComercialesSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+  const { alta_id, ...campos } = parsed.data
+
+  const { error } = await supabase.from('altas').update(campos).eq('id', alta_id)
+  if (error) return { error: error.message }
+  revalidatePath(`/altas/${alta_id}`)
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// ALTAS — integrantes (titular + grupo familiar)
+// ---------------------------------------------------------------------------
+
+export async function getIntegrantes(altaId: string) {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('alta_integrantes')
+    .select('*')
+    .eq('alta_id', altaId)
+    .order('orden', { ascending: true })
+  return data ?? []
+}
+
+const IntegranteSchema = z.object({
+  alta_id: z.string().uuid(),
+  rol: z.enum(['titular', 'conyuge', 'hijo', 'adherente']).default('hijo'),
+  nombre: z.string().optional().nullable(),
+  dni: z.string().optional().nullable(),
+  cuil: z.string().optional().nullable(),
+  fecha_nac: z.string().optional().nullable(),
+  edad: z.number().int().nonnegative().optional().nullable(),
+  peso_kg: z.number().nonnegative().optional().nullable(),
+  altura_cm: z.number().nonnegative().optional().nullable(),
+  domicilio: z.string().optional().nullable(),
+  telefono: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
+  parentesco: z.string().optional().nullable(),
+})
+
+export async function agregarIntegrante(input: z.infer<typeof IntegranteSchema>) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const parsed = IntegranteSchema.safeParse(input)
+  if (!parsed.success) return { error: parsed.error.issues[0].message }
+
+  // orden = siguiente disponible
+  const { data: existentes } = await supabase
+    .from('alta_integrantes')
+    .select('orden')
+    .eq('alta_id', parsed.data.alta_id)
+    .order('orden', { ascending: false })
+    .limit(1)
+  const orden = (existentes?.[0]?.orden ?? -1) + 1
+
+  const { data, error } = await supabase
+    .from('alta_integrantes')
+    .insert({ ...parsed.data, orden })
+    .select()
+    .single()
+  if (error) return { error: error.message }
+  revalidatePath(`/altas/${parsed.data.alta_id}`)
+  return { data }
+}
+
+export async function actualizarIntegrante(
+  id: string,
+  input: Partial<z.infer<typeof IntegranteSchema>> & { alta_id: string }
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { alta_id, ...campos } = input
+  const { error } = await supabase.from('alta_integrantes').update(campos).eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath(`/altas/${alta_id}`)
+  return { success: true }
+}
+
+export async function eliminarIntegrante(id: string, altaId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { error } = await supabase.from('alta_integrantes').delete().eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath(`/altas/${altaId}`)
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// ALTAS — resumen del trámite (texto + documento en Drive)
+// ---------------------------------------------------------------------------
+
+export async function generarResumenAlta(altaId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: alta } = await supabase
+    .from('altas')
+    .select(`
+      id, drive_folder_id, plan_codigo, condicion, cantidad_capitas, cuota,
+      aportes_promedio, sueldo_bruto, periodo_aportes,
+      prepagas(nombre, slug),
+      prepaga_planes(nombre)
+    `)
+    .eq('id', altaId)
+    .single()
+  if (!alta) return { error: 'Alta no encontrada' }
+
+  const integrantes = (await getIntegrantes(altaId)) as unknown as ResumenIntegrante[]
+  const prepaga = alta.prepagas as { nombre: string; slug: string } | null
+  const plan = alta.prepaga_planes as { nombre: string } | null
+
+  const texto = generarResumenTexto(
+    {
+      prepagaNombre: prepaga?.nombre ?? '',
+      prepagaSlug: prepaga?.slug ?? '',
+      planNombre: plan?.nombre ?? null,
+      planCodigo: alta.plan_codigo,
+      condicion: alta.condicion,
+      cantidadCapitas: alta.cantidad_capitas,
+      cuota: alta.cuota,
+      aportesPromedio: alta.aportes_promedio,
+      sueldoBruto: alta.sueldo_bruto,
+      periodoAportes: alta.periodo_aportes,
+    },
+    integrantes
+  )
+
+  // Guardar en Drive (best-effort) si hay carpeta
+  const update: Record<string, unknown> = { resumen_texto: texto }
+  if (alta.drive_folder_id) {
+    try {
+      const doc = await guardarDocResumen(
+        alta.drive_folder_id,
+        'Resumen del trámite',
+        texto
+      )
+      update.resumen_drive_id = doc.id
+      update.resumen_drive_url = doc.urlVista
+    } catch (err) {
+      console.error('[Alta] Error guardando resumen en Drive:', err)
+    }
+  }
+
+  await supabase.from('altas').update(update).eq('id', altaId)
+  revalidatePath(`/altas/${altaId}`)
+  return {
+    data: {
+      texto,
+      driveUrl: (update.resumen_drive_url as string) ?? null,
+    },
+  }
 }
