@@ -136,3 +136,46 @@ export async function esBajoCarpetaRaiz(folderId: string): Promise<boolean> {
   if (!rootId) return false
   return esDescendienteDeAlguna(folderId, [rootId])
 }
+
+// Descarga los bytes de un archivo de Drive (files.get alt=media).
+export async function descargarArchivoDrive(fileId: string): Promise<Buffer> {
+  const drive = google.drive({ version: 'v3', auth: getAuth() })
+  const res = await drive.files.get(
+    { fileId, alt: 'media', supportsAllDrives: true },
+    { responseType: 'arraybuffer' }
+  )
+  return Buffer.from(res.data as ArrayBuffer)
+}
+
+// Extrae el texto plano de un PDF. Usa pdf-parse (import dinámico para evitar
+// que el harness de debug del paquete corra al importar, y para degradar
+// con un error claro si la dependencia no está instalada).
+export async function extraerTextoPdf(buffer: Buffer): Promise<string> {
+  try {
+    const mod = await import('pdf-parse/lib/pdf-parse.js')
+    const pdfParse = (mod.default ?? mod) as (b: Buffer) => Promise<{ text: string }>
+    const data = await pdfParse(buffer)
+    return data.text
+  } catch (error) {
+    console.error('[PDF] Error extrayendo texto:', error)
+    throw new Error(
+      'No se pudo leer el PDF. Verificá que la dependencia "pdf-parse" esté instalada (npm install pdf-parse) o pegá el texto manualmente.'
+    )
+  }
+}
+
+// Lista recursivamente (1 nivel de subcarpetas) los PDFs bajo una carpeta.
+export async function listarPdfsDeCarpeta(folderId: string): Promise<DriveItem[]> {
+  const raiz = await listarContenidoCarpeta(folderId)
+  const pdfs = raiz.filter(i => i.esArchivo && i.mimeType === 'application/pdf')
+  const subcarpetas = raiz.filter(i => !i.esArchivo)
+  for (const sub of subcarpetas) {
+    try {
+      const hijos = await listarContenidoCarpeta(sub.id)
+      pdfs.push(...hijos.filter(i => i.esArchivo && i.mimeType === 'application/pdf'))
+    } catch {
+      // ignorar subcarpetas inaccesibles
+    }
+  }
+  return pdfs
+}

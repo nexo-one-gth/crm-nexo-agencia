@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getAllPrepagas } from '@/app/actions/prepaga-actions'
 import { PrepagasAdminClient } from './PrepagasAdminClient'
 import Link from 'next/link'
-import { Building2, Calendar } from 'lucide-react'
+import { Building2, Calendar, FileSpreadsheet } from 'lucide-react'
 
 export const metadata = { title: 'Admin Prepagas | Nexo Asesores' }
 
@@ -37,13 +37,22 @@ export default async function AdminPrepagasPage() {
             {prepagas.length} prepagas — planes, asesores, checklist
           </p>
         </div>
-        <Link
-          href="/admin/prepagas/calendarios"
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
-        >
-          <Calendar className="w-4 h-4" />
-          Calendarios
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/prepagas/tarifas"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Tarifario Premedic
+          </Link>
+          <Link
+            href="/admin/prepagas/calendarios"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+          >
+            <Calendar className="w-4 h-4" />
+            Calendarios
+          </Link>
+        </div>
       </div>
 
       <PrepagasAdminClient prepagas={prepagas} asesores={asesores ?? []} />

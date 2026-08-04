@@ -1,0 +1,40 @@
+# Normaliza fin de línea: evita el ruido de diffs por CRLF <-> LF
+# Git guarda LF en el repo y convierte según plataforma al hacer checkout.
+* text=auto eol=lf
+
+# Archivos de código y texto: siempre LF
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+*.md    text eol=lf
+*.sql   text eol=lf
+*.html  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.env   text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Scripts de Windows: CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Binarios: sin conversión
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.xlsx  binary
+*.zip   binary

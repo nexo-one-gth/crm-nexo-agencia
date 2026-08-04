@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "NEXO · Autologin Sancor Salud",
+  "version": "1.0.0",
+  "description": "Automatiza el login y la navegación hacia el simulador de cotización de Sancor Salud para los asesores de NEXO.",
+
+  "permissions": ["storage"],
+  "host_permissions": ["https://abacomui.sancorsalud.com.ar/*"],
+
+  "content_scripts": [
+    {
+      "matches": ["https://abacomui.sancorsalud.com.ar/*"],
+      "js": ["config.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "NEXO · Sancor Salud",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

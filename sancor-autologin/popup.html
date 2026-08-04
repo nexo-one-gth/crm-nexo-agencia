@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>NEXO · Sancor Salud</title>
+  <style>
+    :root {
+      --indigo: #4f46e5;
+      --indigo-dark: #3730a3;
+      --texto: #1e293b;
+      --texto-suave: #64748b;
+      --borde: #e2e8f0;
+      --fondo: #f8fafc;
+      --ok: #059669;
+      --error: #e11d48;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 300px;
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--fondo);
+      color: var(--texto);
+    }
+
+    h1 {
+      font-size: 14px;
+      font-weight: 800;
+      margin: 0 0 2px 0;
+      color: var(--indigo-dark);
+    }
+
+    .subtitulo {
+      font-size: 11px;
+      color: var(--texto-suave);
+      margin: 0 0 16px 0;
+    }
+
+    label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--texto-suave);
+      margin-bottom: 4px;
+    }
+
+    .campo {
+      margin-bottom: 12px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--borde);
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      background: white;
+    }
+
+    input:focus {
+      border-color: var(--indigo);
+      box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
+    }
+
+    .fila-password {
+      display: flex;
+      gap: 6px;
+    }
+
+    .fila-password input {
+      flex: 1;
+    }
+
+    .boton-toggle {
+      border: 1px solid var(--borde);
+      background: white;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 0 10px;
+      cursor: pointer;
+      color: var(--texto-suave);
+    }
+
+    button#guardar {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 10px;
+      background: var(--indigo);
+      color: white;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+
+    button#guardar:hover {
+      background: var(--indigo-dark);
+    }
+
+    .estado {
+      margin-top: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      min-height: 16px;
+    }
+
+    .estado.ok {
+      color: var(--ok);
+    }
+
+    .estado.error {
+      color: var(--error);
+    }
+
+    .info-mail {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--borde);
+      font-size: 11px;
+      color: var(--texto-suave);
+      line-height: 1.4;
+    }
+
+    .info-mail strong {
+      color: var(--texto);
+    }
+  </style>
+</head>
+<body>
+  <h1>NEXO · Autologin Sancor Salud</h1>
+  <p class="subtitulo">Cuenta de broker compartida — se guarda solo en este navegador.</p>
+
+  <div class="campo">
+    <label for="usuario">Usuario</label>
+    <input type="text" id="usuario" autocomplete="off" placeholder="Usuario del broker" />
+  </div>
+
+  <div class="campo">
+    <label for="password">Contraseña</label>
+    <div class="fila-password">
+      <input type="password" id="password" autocomplete="off" placeholder="Contraseña" />
+      <button type="button" class="boton-toggle" id="toggle-password">Ver</button>
+    </div>
+  </div>
+
+  <button id="guardar">Guardar credenciales</button>
+  <p class="estado" id="estado"></p>
+
+  <p class="info-mail">
+    El mail de rastreo de las cotizaciones queda siempre fijo en
+    <strong>CAROPYV@GMAIL.COM</strong> — no es configurable desde aquí, es una
+    regla de negocio aplicada automáticamente en el simulador.
+  </p>
+
+  <script src="popup.js"></script>
+</body>
+</html>
