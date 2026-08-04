@@ -13,7 +13,7 @@ const NAV_ITEMS = [
     { href: '/settings', label: 'Ajustes', icon: Settings },
 ]
 
-export const BottomNav = ({ isAdmin = false }: { isAdmin?: boolean }) => {
+export const BottomNav = ({ isAdmin = false, isEquipoVisible = false }: { isAdmin?: boolean; isEquipoVisible?: boolean }) => {
     const pathname = usePathname()
     const router = useRouter()
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -91,8 +91,8 @@ export const BottomNav = ({ isAdmin = false }: { isAdmin?: boolean }) => {
                             {pathname.startsWith('/recursos') && <div className="w-1 h-1 rounded-full bg-blue-500 mt-0.5" />}
                         </Link>
 
-                        {/* Mi equipo (solo admins) */}
-                        {isAdmin && (
+                        {/* Mi equipo (admins y supervisores) */}
+                        {(isAdmin || isEquipoVisible) && (
                             <Link
                                 href="/equipo"
                                 className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all duration-200 min-w-[40px] ${

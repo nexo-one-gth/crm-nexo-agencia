@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { assertAdmin } from '@/lib/supabase/assert-admin'
+import { assertSupervisorOrAdmin } from '@/lib/supabase/assert-admin'
 import { assignLeadsToAdvisor } from '@/app/actions/lead-actions'
 import { revalidatePath } from 'next/cache'
 
@@ -33,7 +33,7 @@ const ETAPAS_CERRADAS = new Set(['Ganado', 'No Interesado'])
 // Datos para la pantalla "Mi equipo": asesores del admin (con su carga) + pool
 // de leads sin asignar que el admin puede repartir.
 export async function getMiEquipoReparto(): Promise<{ data?: MiEquipoData; error?: string }> {
-  const guard = await assertAdmin()
+  const guard = await assertSupervisorOrAdmin()
   if (guard.error || !guard.user) return { error: guard.error ?? 'No autenticado' }
   const callerId = guard.user.id
 

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { assertAdmin, isAdminRole } from '@/lib/supabase/assert-admin'
+import { assertAdmin, assertSupervisorOrAdmin, isAdminRole, isSupervisorRole } from '@/lib/supabase/assert-admin'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 
@@ -215,6 +215,20 @@ export async function getAllLeads() {
             query = query.or(`assigned_to.in.(${asesorIds}),assigned_to.is.null`)
         }
         // Si no tiene asesores asignados, ve todos (backward compat)
+    } else if (isSupervisorRole(profile?.role)) {
+        // supervisor: su bucket de redistribución + leads de su equipo + sin asignar
+        const { data: supervisorAsesores } = await supabase
+            .from('admin_asesores')
+            .select('asesor_id')
+            .eq('admin_id', user.id)
+
+        const asesorIds = (supervisorAsesores ?? []).map(a => a.asesor_id)
+        if (asesorIds.length > 0) {
+            const idList = asesorIds.join(',')
+            query = query.or(`assigned_to.in.(${idList}),assigned_to.eq.${user.id},assigned_to.is.null`)
+        } else {
+            query = query.or(`assigned_to.eq.${user.id},assigned_to.is.null`)
+        }
     } else {
         query = query.eq('assigned_to', user.id)
     }
@@ -266,7 +280,7 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, error: 'No autenticado' }
 
-    const guard = await assertAdmin()
+    const guard = await assertSupervisorOrAdmin()
     if (guard.error) return { success: false, error: guard.error }
 
     // Get "Pendiente" stage ID
@@ -444,3 +458,15 @@ export async function deleteLeads(leadIds: string[]) {
     return { success: true }
 }
 
+export async function logCotizadorAbierto(leadId: string, prepagaNombre: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    await supabase.from('activities').insert({
+        lead_id: leadId,
+        created_by: user.id,
+        type: 'cotizador_abierto',
+        description: `Cotizador ${prepagaNombre} abierto`,
+    })
+}

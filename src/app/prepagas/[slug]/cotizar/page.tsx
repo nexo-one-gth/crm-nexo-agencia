@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { getPrepagaBySlug, getCredencialesCotizador } from '@/app/actions/prepaga-actions'
 import Link from 'next/link'
-import { ArrowLeft, ExternalLink, Copy, Info } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Copy, Info, Calculator } from 'lucide-react'
 import { CopiarCredencial } from './CopiarCredencial'
 import { BotonCotizarSancor } from '@/components/prepagas/BotonCotizarSancor'
 
@@ -20,17 +20,25 @@ export default async function CotizarPage({ params }: { params: Promise<{ slug: 
   if (prepaga.tipo_cotizador === 'integrado') {
     return (
       <div className="max-w-lg mx-auto text-center py-20 space-y-4">
-        <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-          <ExternalLink className="w-8 h-8 text-white" />
+        <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+          <Calculator className="w-8 h-8 text-white" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Cotizador integrado</h2>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Cotizador {prepaga.nombre}</h2>
         <p className="text-slate-500 dark:text-slate-400">
-          El cotizador integrado de <strong>{prepaga.nombre}</strong> está en desarrollo. Próximamente disponible.
+          El cotizador integrado de <strong>{prepaga.nombre}</strong> está disponible desde el panel de cotización del lead. Abrí el lead del prospecto y usá la sección <strong>Cotización</strong>.
         </p>
-        <Link href={`/prepagas/${slug}`} className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
-          <ArrowLeft className="w-4 h-4" />
-          Volver al detalle
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-2 justify-center">
+          <Link
+            href="/leads"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold transition-colors"
+          >
+            Ir a mis leads
+          </Link>
+          <Link href={`/prepagas/${slug}`} className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Volver al detalle
+          </Link>
+        </div>
       </div>
     )
   }

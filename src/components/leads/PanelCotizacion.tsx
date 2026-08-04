@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useCotizacion } from '@/hooks/useCotizacion'
 import { iniciarAltaDesdeCotizacion, getCotizadorAcceso } from '@/app/actions/cotizacion-actions'
+import { logCotizadorAbierto } from '@/app/actions/lead-actions'
 import { getPlanesPorPrepaga } from '@/app/actions/prepaga-actions'
 import { CotizadorInternoPremedic } from '@/components/leads/CotizadorInternoPremedic'
 import { RecursosPrepaga } from '@/components/prepagas/RecursosPrepaga'
@@ -360,6 +361,7 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
     if (!prepagaSeleccionada?.cotizador_url) return
     // Abrir URL inmediatamente (antes del await para evitar bloqueo de popups)
     window.open(prepagaSeleccionada.cotizador_url, '_blank', 'noopener,noreferrer')
+    logCotizadorAbierto(leadId, prepagaSeleccionada.nombre)
     setCargandoAcceso(true)
     const result = await getCotizadorAcceso(prepagaSeleccionada.id)
     setCargandoAcceso(false)

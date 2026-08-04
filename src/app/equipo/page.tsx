@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { isAdminRole } from '@/lib/supabase/assert-admin'
+import { isSupervisorOrAdminRole } from '@/lib/supabase/assert-admin'
 import { getMiEquipoReparto } from '@/app/actions/team-actions'
 import { MiEquipoClient } from './MiEquipoClient'
 import { Users } from 'lucide-react'
@@ -14,7 +14,7 @@ export default async function EquipoPage() {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  if (!isAdminRole(profile?.role)) redirect('/')
+  if (!isSupervisorOrAdminRole(profile?.role)) redirect('/')
 
   const { data, error } = await getMiEquipoReparto()
 
