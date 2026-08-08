@@ -205,7 +205,10 @@ export const getAdminsConAsesores = async (): Promise<ActionResponse<AdminConAse
     if (isAdminPrincipal) {
         // Admin principal: ve todos los admins, asesores y asignaciones
         const [adminsRes, asesoresRes, assignmentsRes] = await Promise.all([
-            supabase.from('profiles').select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor').in('role', ['admin', 'admin_principal']).order('first_name', { ascending: true }),
+            // La columna izquierda son los que PUEDEN TENER EQUIPO a cargo.
+            // `supervisor` va incluido: sin esto, un líder recién creado no
+            // aparecía en ningún grupo de /settings y quedaba invisible.
+            supabase.from('profiles').select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor').in('role', ['admin', 'admin_principal', 'supervisor']).order('first_name', { ascending: true }),
             supabase.from('profiles').select('id, first_name, last_name, email, role, aparecer_en_tablero, codigo_productor').eq('role', 'asesor').order('first_name', { ascending: true }),
             supabase.from('admin_asesores').select('admin_id, asesor_id')
         ])

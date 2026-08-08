@@ -38,7 +38,9 @@ export default async function FunnelPage({
         if (isAdminPrincipal) {
             const [assignmentsRes, adminsRes] = await Promise.all([
                 supabase.from('admin_asesores').select('admin_id, asesor_id'),
-                supabase.from('profiles').select('id, first_name, last_name').in('role', ['admin', 'admin_principal'])
+                // Incluye supervisor: el agrupador del embudo es "quien tiene el
+                // equipo", y eso no depende del rol sino de admin_asesores.
+                supabase.from('profiles').select('id, first_name, last_name').in('role', ['admin', 'admin_principal', 'supervisor'])
             ])
 
             const adminMap: Record<string, string> = {}

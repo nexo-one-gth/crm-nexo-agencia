@@ -308,9 +308,13 @@ export const AdminAdvisorView = ({ isAdminPrincipal, currentUserId }: AdminAdvis
                                     <span className={`text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-full shrink-0 ${
                                         admin.role === 'admin_principal'
                                             ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                                            : admin.role === 'supervisor'
+                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
                                             : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400'
                                     }`}>
-                                        {admin.role === 'admin_principal' ? 'PRINCIPAL' : 'ADMIN'}
+                                        {admin.role === 'admin_principal' ? 'PRINCIPAL'
+                                            : admin.role === 'supervisor' ? 'LÍDER'
+                                            : 'ADMIN'}
                                     </span>
                                     <button
                                         onClick={() => openDetail(admin)}
