@@ -116,19 +116,29 @@ src/
 
 | Ruta | Descripción | Acceso |
 |------|-------------|--------|
+> Verificado contra el filesystem el 2026-08-08. Antes esta tabla listaba
+> `/leads`, que no existe (solo `/leads/[id]`), y omitía seis rutas reales.
+
+| Ruta | Descripción | Acceso |
+|------|-------------|--------|
 | `/login` | Auth Supabase | Pública |
 | `/` | Dashboard con stats y links filtrados a embudo | Todos |
-| `/leads` | Listado de leads | Todos (filtrado por rol) |
 | `/leads/[id]` | Detalle: edición, cotización, WhatsApp, historial | Todos |
 | `/funnel` | Embudo visual Kanban con Realtime | Todos |
+| `/equipo` | Mi Equipo: asesores a cargo | Todos (vacío si no tiene equipo) |
 | `/prepagas` | Catálogo de prepagas | Todos |
 | `/prepagas/[slug]` | Detalle: planes, documentación | Todos |
 | `/prepagas/[slug]/cotizar` | Cotizador (iframe + credenciales server-side) | Todos |
 | `/altas` | Listado de altas/afiliaciones | Todos |
 | `/altas/[id]` | Checklist + adjuntos + estado | Todos |
+| `/comisiones` | Comisiones propias del usuario | Todos |
 | `/recursos` | Navegador Google Drive | Todos |
-| `/settings` | Perfil, contraseña | Todos |
+| `/settings` | Perfil, contraseña, gestión de equipo | Todos |
 | `/admin` | Gestión de asesores y equipos | admin / admin_principal |
+| `/admin/comisiones` | Lotes de cierre y liquidación | admin / admin_principal |
+| `/admin/comisiones/reglas` | Reglas comisionales por prepaga | admin / admin_principal |
+| `/admin/reportes` | Leads asignados por asesor y fecha | admin / admin_principal |
+| `/admin/prepagas/tarifas` | Tarifario Premedic (import PDF) | admin / admin_principal |
 | `/admin/prepagas` | CRUD prepagas, planes, asesores, checklists | admin / admin_principal |
 | `/admin/prepagas/calendarios` | Calendarios de eventos mensuales | admin / admin_principal |
 | `/admin/campaigns` | Gestión de campañas | admin / admin_principal |
