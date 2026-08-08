@@ -125,7 +125,7 @@ src/
 | `/` | Dashboard con stats y links filtrados a embudo | Todos |
 | `/leads/[id]` | Detalle: edición, cotización, WhatsApp, historial | Todos |
 | `/funnel` | Embudo visual Kanban con Realtime | Todos |
-| `/equipo` | Mi Equipo: asesores a cargo | Todos (vacío si no tiene equipo) |
+| `/equipo` | Mi Equipo: reparto de leads sin asignar | supervisor / admin / admin_principal (el asesor es redirigido a `/`) |
 | `/prepagas` | Catálogo de prepagas | Todos |
 | `/prepagas/[slug]` | Detalle: planes, documentación | Todos |
 | `/prepagas/[slug]/cotizar` | Cotizador (iframe + credenciales server-side) | Todos |
