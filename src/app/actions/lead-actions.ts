@@ -58,16 +58,22 @@ export async function updateLeadStage(leadId: string, stageName: string, discard
         updateData.discard_reason = discardReason
     }
 
-    // Admins pueden mover cualquier lead; asesores solo los propios
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    let query = supabase.from('leads').update(updateData).eq('id', leadId)
-    if (!isAdminRole(profile?.role)) query = query.eq('assigned_to', user.id)
-
-    const { error } = await query
+    // Sin filtro por rol: el alcance lo resuelve el RLS de `leads`. El filtro
+    // de acá no conocía a los líderes, así que un supervisor no podía mover en
+    // el embudo los leads de su propio equipo.
+    //
+    // El .select() no es decorativo: cuando el RLS bloquea un UPDATE, Postgres
+    // no devuelve error, simplemente afecta 0 filas. Sin este chequeo la acción
+    // reportaría éxito y el lead no se habría movido.
+    const { data: actualizados, error } = await supabase
+        .from('leads').update(updateData).eq('id', leadId).select('id')
 
     if (error) {
         console.error('Error updating stage:', error)
         return { success: false, error: error.message }
+    }
+    if (!actualizados || actualizados.length === 0) {
+        return { success: false, error: 'No tenés permiso para mover este lead' }
     }
 
     if (previousStageName && previousStageName !== stageName) {
@@ -420,11 +426,13 @@ export async function updateLead(data: Record<string, unknown>) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'No autenticado' };
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-    let query = supabase.from('leads').update(updateFields).eq('id', id);
-    if (!isAdminRole(profile?.role)) query = query.eq('assigned_to', user.id);
+    // Sin filtro por rol: lo resuelve el RLS de `leads` (ver updateLeadStage).
+    const { data: actualizados, error } = await supabase
+        .from('leads').update(updateFields).eq('id', id).select('id');
 
-    const { error } = await query;
+    if (!error && (!actualizados || actualizados.length === 0)) {
+        return { success: false, error: 'No tenés permiso para editar este lead' };
+    }
     if (error) {
         console.error('Error updating lead:', error);
         return { success: false, error: error.message };

@@ -37,7 +37,7 @@ export default async function AltasPage() {
             Altas en proceso
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {altas.length} {altas.length === 1 ? 'alta' : 'altas'} {esAdmin ? 'en total' : 'tuyas'}
+            {altas.length} {altas.length === 1 ? 'alta' : 'altas'} {esAdmin ? 'en total' : 'a tu alcance'}
           </p>
         </div>
         <Link

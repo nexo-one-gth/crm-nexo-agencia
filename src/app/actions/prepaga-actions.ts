@@ -436,11 +436,7 @@ export async function getAltas() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return []
 
-  const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
-  const esAdmin = isAdminRole(profile?.role)
-
-  let query = supabase
+  const query = supabase
     .from('altas')
     .select(`
       *,
@@ -452,10 +448,11 @@ export async function getAltas() {
     `)
     .order('created_at', { ascending: false })
 
-  if (!esAdmin) {
-    query = query.eq('asesor_id', user.id)
-  }
-
+  // Sin filtro por usuario: el alcance lo resuelve el RLS de `altas`
+  // (auth_is_admin() OR asesor_id in auth_asesores_visibles()). Filtrar acá
+  // además duplicaba la definición de visibilidad, y la copia del código se
+  // había quedado atrás: un líder veía 0 altas cuando la base le permitía
+  // ver las de su equipo.
   const { data, error } = await query
   if (error) { console.error('getAltas:', error); return [] }
   return data
@@ -900,7 +897,11 @@ export async function getMisComisiones() {
       prepagas(nombre, slug),
       cierres_comisionales(mes_periodo, estado)
     `)
-    .eq('asesor_id', user.id)
+    // beneficiario_id, NO asesor_id: esta pantalla es "lo que YO cobro".
+    // Con el modelo de override, una fila puede tener asesor_id = el vendedor
+    // y beneficiario_id = su líder. Filtrando por asesor_id, un líder nunca
+    // vería sus propios overrides.
+    .eq('beneficiario_id', user.id)
     .order('created_at', { ascending: false })
   return data ?? []
 }
