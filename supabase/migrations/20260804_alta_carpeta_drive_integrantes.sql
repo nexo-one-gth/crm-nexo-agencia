@@ -1,6 +1,13 @@
 -- =============================================================================
 -- Alta: carpeta de Google Drive por trámite + integrantes + datos comerciales
 -- -----------------------------------------------------------------------------
+-- NOTA (2026-08-08): esta migración estuvo en el repo SIN APLICAR durante días.
+-- La siguiente del mismo día (alta_plantillas_v2) sí se había aplicado, con lo
+-- cual el código que usa `alta_integrantes` y `altas.drive_folder_id` fallaba en
+-- runtime, aunque `tsc` pasaba porque el types.ts commiteado sí las declaraba.
+-- Aplicada el 2026-08-08 vía MCP (migración remota `alta_carpeta_drive_integrantes`).
+-- El bloque 4 (seed de Sancor) quedó como no-op: ya había plantilla activa.
+-- -----------------------------------------------------------------------------
 -- Cada alta genera una carpeta en Drive (bajo la carpeta de su prepaga) donde
 -- se sube la documentación desde el CRM. Además se capturan los datos por
 -- integrante (titular + grupo familiar) y los datos comerciales del trámite

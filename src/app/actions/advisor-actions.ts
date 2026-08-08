@@ -11,7 +11,7 @@ const advisorSchema = z.object({
     password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres" }),
     firstName: z.string().min(2, { message: "Nombre muy corto" }),
     lastName: z.string().min(2, { message: "Apellido muy corto" }),
-    role: z.enum(['admin_principal', 'admin', 'asesor']).default('asesor')
+    role: z.enum(['admin_principal', 'admin', 'supervisor', 'asesor']).default('asesor')
 })
 
 export type ActionResponse<T = unknown> = {

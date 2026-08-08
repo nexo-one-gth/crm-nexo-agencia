@@ -4,6 +4,37 @@ CRM interno para asesores de seguros de salud (prepagas). Gestiona leads, embudo
 
 ---
 
+## SKILLS DISPONIBLES
+
+Estas skills se incorporaron **específicamente por el modelo de visibilidad jerárquica del CRM** (admin general → admin de equipo → asesor). La separación entre roles se resuelve en RLS de Supabase, no en el frontend: un error en una política expone comisiones, liquidaciones y datos de leads de otros equipos. Estas tres skills existen para que ese riesgo se revise sistemáticamente y no a ojo.
+
+| Skill | Origen | Se activa cuando… |
+|---|---|---|
+| `supabase` | plugin `supabase@supabase-agent-skills` | se toca Auth, RLS, integración SSR con Next.js, migraciones o el CLI/MCP de Supabase |
+| `postgres-best-practices` | plugin `postgres-best-practices@supabase-agent-skills` | se diseña o modifica schema, se escriben queries/índices, o se evalúa performance y seguridad a nivel Postgres |
+| `rls-audit` | `.claude/skills/rls-audit/` (versionada en el repo) | se pide auditar políticas RLS, revisar permisos o buscar fugas entre roles |
+
+### `supabase`
+Guía oficial de Supabase para agentes. Cubre Auth (incluido el patrón `@supabase/ssr` con App Router y middleware), diseño de políticas RLS, migraciones y uso del CLI y el MCP. **Cuándo se activa:** al crear o editar archivos en `supabase/migrations/`, tocar `src/lib/supabase/*`, o trabajar sobre login/sesiones. Es la referencia para no reintroducir antipatrones de SSR (por ejemplo, usar el cliente browser en Server Components).
+
+### `postgres-best-practices`
+Buenas prácticas de Postgres: modelado de schema, índices, performance de queries y una sección **Security & RLS** que es la crítica para este proyecto. **Cuándo se activa:** antes de proponer un cambio de modelo de datos, al agregar tablas de los módulos de comisiones/liquidaciones, o cuando una consulta del dashboard se pone lenta. Ojo: las políticas RLS que llaman funciones por fila (`auth_is_admin()`) impactan el plan de ejecución — esta skill cubre ese cruce entre performance y seguridad.
+
+### `rls-audit`
+Auditoría sistemática de políticas RLS. Detecta tablas sin RLS, RLS habilitado sin políticas, políticas `USING (true)`, falta de `FORCE ROW LEVEL SECURITY`, cobertura incompleta de operaciones, bypasses por `SECURITY DEFINER`, grants a `anon` sin RLS que los respalde y fugas de aislamiento entre tenants/equipos. Clasifica cada hallazgo en **CRITICAL / HIGH / MEDIUM / LOW** y puede generar una migración de fix en `supabase/migrations/<timestamp>_rls_audit_fixes.sql`. **Cuándo se activa:** antes de mergear cambios de políticas, al agregar una tabla con datos por asesor, o para revisiones periódicas de seguridad. Referencias en `.claude/skills/rls-audit/references/`.
+
+> Primera auditoría corrida el 2026-08-08: ver `AUDITORIA_RLS_2026-08-08.md` (3 CRITICAL, 5 HIGH, 6 MEDIUM, 4 LOW — sin aplicar).
+
+**Nota para el equipo:** `.claude/skills/` se versiona en el repo, así que al clonar ya vienen las skills locales. Los plugins del marketplace se instalan a nivel usuario y hay que correrlos una vez:
+
+```bash
+claude plugin marketplace add supabase/agent-skills
+claude plugin install supabase@supabase-agent-skills
+claude plugin install postgres-best-practices@supabase-agent-skills
+```
+
+---
+
 ## STACK Y CONFIGURACIÓN
 
 - **Framework:** Next.js 15 (App Router, SSR puro — sin SSG)

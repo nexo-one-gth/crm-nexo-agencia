@@ -206,7 +206,7 @@ export const AdminAdvisorView = ({ isAdminPrincipal, currentUserId }: AdminAdvis
             password: formData.get('password') as string,
             firstName: formData.get('firstName') as string,
             lastName: formData.get('lastName') as string,
-            role: formData.get('role') as 'admin' | 'asesor',
+            role: formData.get('role') as 'admin_principal' | 'admin' | 'supervisor' | 'asesor',
         })
         if (res.success) {
             toast.success('Usuario creado correctamente')
@@ -520,6 +520,7 @@ export const AdminAdvisorView = ({ isAdminPrincipal, currentUserId }: AdminAdvis
                                 }`}>
                                     {selectedProfile.role === 'admin_principal' ? 'Admin Principal'
                                         : selectedProfile.role === 'admin' ? 'Admin'
+                                        : selectedProfile.role === 'supervisor' ? 'Líder de Equipo'
                                         : 'Asesor'}
                                 </span>
 
@@ -707,6 +708,7 @@ export const AdminAdvisorView = ({ isAdminPrincipal, currentUserId }: AdminAdvis
                         <label className="text-xs font-bold uppercase text-slate-500 ml-1">Rol</label>
                         <select name="role" className="w-full px-4 py-2.5 rounded-xl glass-input border border-white/20 appearance-none bg-transparent">
                             <option value="asesor">Asesor de Ventas</option>
+                            {isAdminPrincipal && <option value="supervisor">Líder de Equipo</option>}
                             {isAdminPrincipal && <option value="admin">Administrador</option>}
                             {isAdminPrincipal && <option value="admin_principal">Admin Principal</option>}
                         </select>

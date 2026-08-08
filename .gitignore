@@ -46,4 +46,8 @@ next-env.d.ts
 # claude code local state (worktrees de agentes, permisos locales)
 .claude/worktrees/
 .claude/settings.local.json
-.claude/skills/
+
+# .claude/skills/ SE VERSIONA: el equipo comparte las mismas skills al clonar.
+# Excepción: symlinks generados localmente por `npx skills add` (no portables).
+.claude/skills/supabase
+.claude/skills/supabase-postgres-best-practices

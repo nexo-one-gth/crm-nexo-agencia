@@ -166,6 +166,7 @@ export type Database = {
           id: string
           plantilla_item_id: string | null
           requerido: boolean
+          seccion: string
           tipo_dato: string
           valor_fecha: string | null
           valor_numero: number | null
@@ -183,6 +184,7 @@ export type Database = {
           id?: string
           plantilla_item_id?: string | null
           requerido?: boolean
+          seccion?: string
           tipo_dato: string
           valor_fecha?: string | null
           valor_numero?: number | null
@@ -200,6 +202,7 @@ export type Database = {
           id?: string
           plantilla_item_id?: string | null
           requerido?: boolean
+          seccion?: string
           tipo_dato?: string
           valor_fecha?: string | null
           valor_numero?: number | null
@@ -442,6 +445,7 @@ export type Database = {
           orden: number
           plantilla_id: string
           requerido: boolean
+          seccion: string
           tipo_dato: string
         }
         Insert: {
@@ -450,6 +454,7 @@ export type Database = {
           orden?: number
           plantilla_id: string
           requerido?: boolean
+          seccion?: string
           tipo_dato?: string
         }
         Update: {
@@ -458,6 +463,7 @@ export type Database = {
           orden?: number
           plantilla_id?: string
           requerido?: boolean
+          seccion?: string
           tipo_dato?: string
         }
         Relationships: [
@@ -476,6 +482,7 @@ export type Database = {
           id: string
           nombre: string
           prepaga_id: string
+          resumen_template: string | null
           tipo_alta: string | null
         }
         Insert: {
@@ -483,6 +490,7 @@ export type Database = {
           id?: string
           nombre?: string
           prepaga_id: string
+          resumen_template?: string | null
           tipo_alta?: string | null
         }
         Update: {
@@ -490,6 +498,7 @@ export type Database = {
           id?: string
           nombre?: string
           prepaga_id?: string
+          resumen_template?: string | null
           tipo_alta?: string | null
         }
         Relationships: [
@@ -573,6 +582,7 @@ export type Database = {
         Row: {
           alta_id: string
           asesor_id: string
+          beneficiario_id: string
           cierre_id: string | null
           comision_pct_asesor: number | null
           created_at: string
@@ -588,11 +598,15 @@ export type Database = {
           porcentaje: number
           prepaga_id: string
           segmento: string
+          supervisor_id: string | null
+          tipo: string
           tipo_base: string
+          vendedor_id: string
         }
         Insert: {
           alta_id: string
           asesor_id: string
+          beneficiario_id: string
           cierre_id?: string | null
           comision_pct_asesor?: number | null
           created_at?: string
@@ -608,11 +622,15 @@ export type Database = {
           porcentaje: number
           prepaga_id: string
           segmento: string
+          supervisor_id?: string | null
+          tipo: string
           tipo_base: string
+          vendedor_id: string
         }
         Update: {
           alta_id?: string
           asesor_id?: string
+          beneficiario_id?: string
           cierre_id?: string | null
           comision_pct_asesor?: number | null
           created_at?: string
@@ -628,20 +646,16 @@ export type Database = {
           porcentaje?: number
           prepaga_id?: string
           segmento?: string
+          supervisor_id?: string | null
+          tipo?: string
           tipo_base?: string
+          vendedor_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "comisiones_cierre_id_fkey"
-            columns: ["cierre_id"]
-            isOneToOne: false
-            referencedRelation: "cierres_comisionales"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "comisiones_alta_id_fkey"
             columns: ["alta_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "altas"
             referencedColumns: ["id"]
           },
@@ -650,6 +664,20 @@ export type Database = {
             columns: ["asesor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comisiones_beneficiario_id_fkey"
+            columns: ["beneficiario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comisiones_cierre_id_fkey"
+            columns: ["cierre_id"]
+            isOneToOne: false
+            referencedRelation: "cierres_comisionales"
             referencedColumns: ["id"]
           },
           {
@@ -671,6 +699,20 @@ export type Database = {
             columns: ["prepaga_id"]
             isOneToOne: false
             referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comisiones_supervisor_id_fkey"
+            columns: ["supervisor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comisiones_vendedor_id_fkey"
+            columns: ["vendedor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1478,6 +1520,7 @@ export type Database = {
           id: string
           last_name: string | null
           role: string | null
+          solo_lectura: boolean
         }
         Insert: {
           aparecer_en_tablero?: boolean
@@ -1488,6 +1531,7 @@ export type Database = {
           id: string
           last_name?: string | null
           role?: string | null
+          solo_lectura?: boolean
         }
         Update: {
           aparecer_en_tablero?: boolean
@@ -1498,8 +1542,67 @@ export type Database = {
           id?: string
           last_name?: string | null
           role?: string | null
+          solo_lectura?: boolean
         }
         Relationships: []
+      }
+      supervisor_overrides: {
+        Row: {
+          activo: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          pct_equipo: number | null
+          pct_venta_propia: number | null
+          prepaga_id: string
+          supervisor_id: string
+          vigente_desde: string
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          pct_equipo?: number | null
+          pct_venta_propia?: number | null
+          prepaga_id: string
+          supervisor_id: string
+          vigente_desde?: string
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          pct_equipo?: number | null
+          pct_venta_propia?: number | null
+          prepaga_id?: string
+          supervisor_id?: string
+          vigente_desde?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervisor_overrides_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervisor_overrides_prepaga_id_fkey"
+            columns: ["prepaga_id"]
+            isOneToOne: false
+            referencedRelation: "prepagas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervisor_overrides_supervisor_id_fkey"
+            columns: ["supervisor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       workflows: {
         Row: {
@@ -1591,6 +1694,7 @@ export type Database = {
     Functions: {
       auth_is_admin: { Args: never; Returns: boolean }
       auth_is_admin_principal: { Args: never; Returns: boolean }
+      auth_is_supervisor: { Args: never; Returns: boolean }
     }
     Enums: {
       user_role: "admin" | "supervisor" | "sales_executive" | "asesor"

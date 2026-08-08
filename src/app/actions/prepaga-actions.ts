@@ -827,10 +827,26 @@ async function generarComisionParaAlta(params: {
 
   const cierre = await getOrCreateCierreAbierto(supabase, params.prepagaId)
 
+  // Snapshot del líder del vendedor al momento de la venta. Se congela a
+  // propósito: si el asesor cambia de equipo después, recalcularlo reescribiría
+  // el pasado de dos líderes a la vez (uno perdería liquidaciones ya cobradas).
+  // Se busca por relación, no por rol: quien figura acá puede ser supervisor,
+  // admin o admin_principal.
+  const { data: rel } = await adminSupabase
+    .from('admin_asesores')
+    .select('admin_id')
+    .eq('asesor_id', params.asesorId)
+    .maybeSingle()
+  const supervisorId = rel?.admin_id ?? null
+
   await supabase.from('comisiones').insert({
     alta_id: params.altaId,
     lead_id: params.leadId,
     asesor_id: params.asesorId,
+    beneficiario_id: params.asesorId,
+    vendedor_id: params.asesorId,
+    supervisor_id: supervisorId,
+    tipo: 'directa',
     prepaga_id: params.prepagaId,
     segmento: params.segmento,
     origen,
@@ -841,6 +857,10 @@ async function generarComisionParaAlta(params: {
     monto_comision: montoComision,
     cierre_id: cierre?.id ?? null,
   })
+
+  // TODO (Fase C): emitir aquí las filas de override —la del líder sobre la
+  // venta de su asesor, y la del propio vendedor si tiene pct_venta_propia
+  // cargado en supervisor_overrides—. Ver MODELO_ROLES.md sección 2.2.1.
 
   const montoFmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(montoComision)
   await supabase.from('activities').insert({
