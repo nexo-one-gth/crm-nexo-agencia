@@ -6,11 +6,15 @@ import { assertAdmin, assertAdminPrincipal } from '@/lib/supabase/assert-admin'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
+// Todos los campos de texto se normalizan con trim() ANTES de validar.
+// Motivo: un espacio invisible al final del campo de contraseña se guardaba
+// en Auth y después el login fallaba con "Invalid login credentials", sin
+// ninguna pista de por qué. Lo mismo ensuciaba nombres y emails.
 const advisorSchema = z.object({
-    email: z.string().email({ message: "Email inválido" }),
-    password: z.string().min(6, { message: "La contraseña debe tener al menos 6 caracteres" }),
-    firstName: z.string().min(2, { message: "Nombre muy corto" }),
-    lastName: z.string().min(2, { message: "Apellido muy corto" }),
+    email: z.string().trim().toLowerCase().email({ message: "Email inválido" }),
+    password: z.string().trim().min(6, { message: "La contraseña debe tener al menos 6 caracteres" }),
+    firstName: z.string().trim().min(2, { message: "Nombre muy corto" }),
+    lastName: z.string().trim().min(2, { message: "Apellido muy corto" }),
     role: z.enum(['admin_principal', 'admin', 'supervisor', 'asesor']).default('asesor')
 })
 
