@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { isAdminRole } from '@/lib/supabase/assert-admin'
 import { redirect } from 'next/navigation'
 import { getAllPrepagas } from '@/app/actions/prepaga-actions'
 import { PrepagasAdminClient } from './PrepagasAdminClient'
@@ -14,7 +15,9 @@ export default async function AdminPrepagasPage() {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') redirect('/')
+  // isAdminRole cubre admin + admin_principal. El chequeo literal contra 'admin'
+  // dejaba afuera al admin_principal, que es quien más permisos tiene.
+  if (!isAdminRole(profile?.role)) redirect('/')
 
   const prepagas = await getAllPrepagas()
 

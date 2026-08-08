@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { isAdminRole } from '@/lib/supabase/assert-admin'
 import { redirect } from 'next/navigation'
 import { getAllPrepagas, getEventosPorMes } from '@/app/actions/prepaga-actions'
 import { CalendarioAdminClient } from './CalendarioAdminClient'
@@ -21,7 +22,9 @@ export default async function CalendariosPage({ searchParams }: Props) {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') redirect('/')
+  // isAdminRole cubre admin + admin_principal. El chequeo literal contra 'admin'
+  // dejaba afuera al admin_principal, que es quien más permisos tiene.
+  if (!isAdminRole(profile?.role)) redirect('/')
 
   const mesActual = mes ?? format(new Date(), 'yyyy-MM')
   const [prepagas, eventos] = await Promise.all([
