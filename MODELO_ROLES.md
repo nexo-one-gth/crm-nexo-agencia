@@ -1,7 +1,26 @@
 # Modelo de roles y visibilidad — CRM Nexo Agencia
 
 **Fecha:** 2026-08-08
-**Estado:** diseño acordado, sin implementar.
+**Estado:** implementado. Fases A, B y C aplicadas y validadas el 2026-08-08.
+
+| Fase | Qué | Estado |
+|---|---|---|
+| A | Schema: `comisiones` N:1, `supervisor_overrides`, `solo_lectura` | ✅ aplicada |
+| B | Helpers + 23 políticas RLS reescritas | ✅ aplicada y testeada por rol |
+| C | Generador de overrides al aprobar un alta | ✅ implementado |
+| — | Código: dejar que el RLS defina el alcance | ✅ |
+| D | Selector de alcance, pantallas de líder, carga de overrides | ⏳ pendiente |
+
+Prueba de aceptación corrida sobre datos reales (base 1000, la agencia gana 100):
+
+```
+Venta del asesor      → directa asesor 100 · override líder 10
+Venta de Carolina     → directa 100 · override propio 5   (admin + líder + vendedora)
+
+asesor   ve 2 filas · cobra $50.100 · NO ve el override de su líder
+líder    ve 2 filas · cobra $10
+Carolina ve todo (admin) · cobra $105
+```
 **Relacionado:** `AUDITORIA_RLS_2026-08-08.md` (resuelve C-2, C-3, H-4, H-5, L-4)
 
 ---
