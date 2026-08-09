@@ -93,6 +93,7 @@ export type Database = {
           edad: number | null
           email: string | null
           fecha_nac: string | null
+          fum: string | null
           id: string
           nombre: string | null
           observaciones: string | null
@@ -113,6 +114,7 @@ export type Database = {
           edad?: number | null
           email?: string | null
           fecha_nac?: string | null
+          fum?: string | null
           id?: string
           nombre?: string | null
           observaciones?: string | null
@@ -133,6 +135,7 @@ export type Database = {
           edad?: number | null
           email?: string | null
           fecha_nac?: string | null
+          fum?: string | null
           id?: string
           nombre?: string | null
           observaciones?: string | null
@@ -245,6 +248,7 @@ export type Database = {
           estado: string
           id: string
           lead_id: string
+          medio_pago: string | null
           observaciones: string | null
           periodo_aportes: string | null
           plan_codigo: string | null
@@ -270,6 +274,7 @@ export type Database = {
           estado?: string
           id?: string
           lead_id: string
+          medio_pago?: string | null
           observaciones?: string | null
           periodo_aportes?: string | null
           plan_codigo?: string | null
@@ -295,6 +300,7 @@ export type Database = {
           estado?: string
           id?: string
           lead_id?: string
+          medio_pago?: string | null
           observaciones?: string | null
           periodo_aportes?: string | null
           plan_codigo?: string | null

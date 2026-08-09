@@ -25,6 +25,7 @@ export type Integrante = {
   telefono: string | null
   email: string | null
   parentesco: string | null
+  fum: string | null
 }
 
 const ROLES = [
@@ -53,11 +54,16 @@ function IntegranteCard({ integrante, altaId }: { integrante: Integrante; altaId
     domicilio: integrante.domicilio ?? '',
     telefono: integrante.telefono ?? '',
     email: integrante.email ?? '',
+    fum: integrante.fum ?? '',
   })
   const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF(s => ({ ...s, [k]: e.target.value }))
 
   const esTitular = f.rol === 'titular'
+  // Peso, altura, FUM y domicilio no son solo del titular: la DDJJ de salud los
+  // pide para todos los adultos del grupo. En las altas reales el cónyuge viene
+  // con esos datos y el editor no tenía dónde ponerlos.
+  const esAdulto = f.rol !== 'hijo'
 
   function guardar() {
     startTransition(async () => {
@@ -74,6 +80,7 @@ function IntegranteCard({ integrante, altaId }: { integrante: Integrante; altaId
         domicilio: f.domicilio || null,
         telefono: f.telefono || null,
         email: f.email || null,
+        fum: f.fum || null,
       })
       if (res.error) { toast.error(res.error); return }
       toast.success('Integrante guardado')
@@ -125,7 +132,7 @@ function IntegranteCard({ integrante, altaId }: { integrante: Integrante; altaId
           <label className={label}>Edad</label>
           <input className={field} type="number" value={f.edad} onChange={upd('edad')} />
         </div>
-        {esTitular && (
+        {esAdulto && (
           <>
             <div>
               <label className={label}>Peso (kg)</label>
@@ -135,10 +142,18 @@ function IntegranteCard({ integrante, altaId }: { integrante: Integrante; altaId
               <label className={label}>Altura (cm)</label>
               <input className={field} type="number" value={f.altura_cm} onChange={upd('altura_cm')} />
             </div>
+            <div>
+              <label className={label}>FUM</label>
+              <input className={field} type="date" value={f.fum} onChange={upd('fum')} />
+            </div>
             <div className="col-span-2">
               <label className={label}>Domicilio</label>
               <input className={field} value={f.domicilio} onChange={upd('domicilio')} />
             </div>
+          </>
+        )}
+        {esTitular && (
+          <>
             <div>
               <label className={label}>Teléfono</label>
               <input className={field} value={f.telefono} onChange={upd('telefono')} />

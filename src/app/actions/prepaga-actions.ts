@@ -1346,6 +1346,7 @@ const DatosComercialesSchema = z.object({
   aportes_promedio: z.number().nonnegative().optional().nullable(),
   sueldo_bruto: z.number().nonnegative().optional().nullable(),
   periodo_aportes: z.string().optional().nullable(),
+  medio_pago: z.string().optional().nullable(),
 })
 
 export async function guardarDatosComerciales(input: z.infer<typeof DatosComercialesSchema>) {
@@ -1398,6 +1399,7 @@ const IntegranteSchema = z.object({
   telefono: z.string().optional().nullable(),
   email: z.string().optional().nullable(),
   parentesco: z.string().optional().nullable(),
+  fum: z.string().optional().nullable(),
 })
 
 export async function agregarIntegrante(input: z.infer<typeof IntegranteSchema>) {

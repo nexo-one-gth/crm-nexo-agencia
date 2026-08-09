@@ -189,6 +189,7 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
           aportes_promedio: alta.aportes_promedio ?? null,
           sueldo_bruto: alta.sueldo_bruto ?? null,
           periodo_aportes: alta.periodo_aportes ?? null,
+          medio_pago: alta.medio_pago ?? null,
         }}
       />
 

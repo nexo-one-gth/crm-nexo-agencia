@@ -16,7 +16,13 @@ type Datos = {
   aportes_promedio: number | null
   sueldo_bruto: number | null
   periodo_aportes: string | null
+  medio_pago: string | null
 }
+
+// Las promos de las prepagas suelen estar atadas al medio de pago
+// ("-25% abonando por transferencia"), así que este campo cambia el descuento
+// y con él la base sobre la que se calcula la comisión.
+const MEDIOS_PAGO = ['Transferencia', 'Débito automático', 'Tarjeta de crédito', 'Efectivo']
 
 const num = (v: string) => (v.trim() === '' ? null : Number(v))
 
@@ -38,6 +44,7 @@ export function DatosComerciales({ altaId, datos }: { altaId: string; datos: Dat
     aportes_promedio: datos.aportes_promedio?.toString() ?? '',
     sueldo_bruto: datos.sueldo_bruto?.toString() ?? '',
     periodo_aportes: datos.periodo_aportes ?? '',
+    medio_pago: datos.medio_pago ?? '',
   })
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -54,6 +61,7 @@ export function DatosComerciales({ altaId, datos }: { altaId: string; datos: Dat
         aportes_promedio: num(form.aportes_promedio),
         sueldo_bruto: num(form.sueldo_bruto),
         periodo_aportes: form.periodo_aportes || null,
+        medio_pago: form.medio_pago || null,
       })
       if (res.error) { toast.error(res.error); return }
       toast.success('Datos guardados')
@@ -105,9 +113,21 @@ export function DatosComerciales({ altaId, datos }: { altaId: string; datos: Dat
           <label className={label}>Sueldo bruto ($)</label>
           <input className={field} type="number" value={form.sueldo_bruto} onChange={set('sueldo_bruto')} placeholder="2560103.66" />
         </div>
-        <div className="col-span-2">
-          <label className={label}>Período de aportes</label>
-          <input className={field} value={form.periodo_aportes} onChange={set('periodo_aportes')} placeholder="Junio 2026" />
+        <div>
+          <label className={label}>Período / nómina</label>
+          <input className={field} value={form.periodo_aportes} onChange={set('periodo_aportes')} placeholder="Julio 2026" />
+        </div>
+        <div>
+          <label className={label}>Medio de pago</label>
+          <select
+            className={field}
+            value={form.medio_pago}
+            onChange={e => setForm(f => ({ ...f, medio_pago: e.target.value }))}
+          >
+            <option value="">Sin definir</option>
+            {MEDIOS_PAGO.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <p className="mt-1 text-[11px] text-slate-400">Puede condicionar descuentos promocionales.</p>
         </div>
       </div>
 
