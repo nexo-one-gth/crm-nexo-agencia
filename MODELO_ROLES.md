@@ -296,6 +296,29 @@ Además, índice en `comisiones (beneficiario_id)` y `comisiones (supervisor_id)
 
 ## 5. Pendientes de definición
 
+> ### ⚠️ ABIERTO: sobre qué se calcula el override
+>
+> **Nadie confirmó esto todavía.** El generador está implementado asumiendo que
+> el override es un porcentaje **sobre la comisión de la agencia**, no sobre la
+> cuota del socio:
+>
+> ```
+> cuota 1000 · regla de la prepaga 10%  →  la agencia gana 100
+> override del líder 10%                →  $10
+> ```
+>
+> Si el criterio real fuera un porcentaje **sobre la cuota**, ese mismo 10%
+> serían $100 — diez veces más. Es una línea de código, pero los números no se
+> parecen en nada.
+>
+> **Por qué se puede postergar sin riesgo:** `supervisor_overrides` está vacía.
+> Sin porcentajes cargados el generador no emite ninguna fila de override, así
+> que no hay forma de liquidar mal. **Resolver esto ANTES de cargar el primer
+> porcentaje**, y de paso revisar el módulo de comisiones completo.
+>
+> Ver `generarComisionParaAlta()` en `src/app/actions/prepaga-actions.ts`.
+
+
 1. **¿El supervisor aprueba ventas de su equipo, o solo admin para arriba?** No quedó cubierto. Cambia una política de `altas`.
 2. **¿El admin cobra override sobre sus supervisores?** Queda preparado en el schema, sin activar.
 3. ~~Carolina vendiendo como asesora~~ — **resuelto**: cobra la escala de asesor por su venta **más** override sobre esa misma venta, configurable por persona y prepaga vía `supervisor_overrides.pct_venta_propia`. Ver 2.2 y 2.2.1.
