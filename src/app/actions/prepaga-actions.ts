@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdmin, isAdminRole } from '@/lib/supabase/assert-admin'
+import type { TablesInsert } from '@/lib/supabase/types'
 import {
   listarContenidoCarpeta,
   crearCarpetaDrive,
@@ -759,10 +760,13 @@ async function generarComisionParaAlta(params: {
 }) {
   const supabase = await createClient()
 
-  // Evitar duplicados si por algún motivo se vuelve a aprobar (no debería pasar, pero es 1:1 con la alta)
-  const { data: existente } = await supabase
-    .from('comisiones').select('id').eq('alta_id', params.altaId).maybeSingle()
-  if (existente) return
+  // Evitar duplicados si por algún motivo se vuelve a aprobar.
+  // OJO: ya no es 1:1 con el alta —una venta genera la directa más los
+  // overrides—, así que .maybeSingle() acá tiraba error apenas existiera más
+  // de una fila. Se chequea por existencia, no por unicidad.
+  const { data: existentes } = await supabase
+    .from('comisiones').select('id').eq('alta_id', params.altaId).limit(1)
+  if (existentes && existentes.length > 0) return
 
   const { data: lead } = await supabase
     .from('leads')
@@ -836,28 +840,106 @@ async function generarComisionParaAlta(params: {
     .maybeSingle()
   const supervisorId = rel?.admin_id ?? null
 
-  await supabase.from('comisiones').insert({
+  // Base común a todas las filas de esta venta.
+  const comun = {
     alta_id: params.altaId,
     lead_id: params.leadId,
+    // asesor_id conserva su significado histórico: QUIÉN VENDIÓ. También en las
+    // filas de override, donde el beneficiario es otro.
     asesor_id: params.asesorId,
-    beneficiario_id: params.asesorId,
     vendedor_id: params.asesorId,
-    supervisor_id: supervisorId,
-    tipo: 'directa',
     prepaga_id: params.prepagaId,
     segmento: params.segmento,
     origen,
     tipo_base: regla.tipo_base,
+    monto_base: montoBase,
+    cierre_id: cierre?.id ?? null,
+  }
+
+  const filas: TablesInsert<'comisiones'>[] = [{
+    ...comun,
+    beneficiario_id: params.asesorId,
+    supervisor_id: supervisorId,
+    tipo: 'directa',
     porcentaje: regla.porcentaje,
     comision_pct_asesor: pctAsesor,
-    monto_base: montoBase,
     monto_comision: montoComision,
-    cierre_id: cierre?.id ?? null,
-  })
+  }]
 
-  // TODO (Fase C): emitir aquí las filas de override —la del líder sobre la
-  // venta de su asesor, y la del propio vendedor si tiene pct_venta_propia
-  // cargado en supervisor_overrides—. Ver MODELO_ROLES.md sección 2.2.1.
+  // ---------------------------------------------------------------------------
+  // Overrides
+  //
+  // Se disparan POR RELACIÓN, nunca por `profiles.role`. Quien figura como
+  // líder puede tener rol supervisor, admin o admin_principal — el caso de una
+  // admin que además conduce un equipo. Si esto preguntara por el rol, esa
+  // persona no cobraría y no habría ningún error que lo delate: simplemente
+  // faltaría una fila en la liquidación.
+  //
+  // El override se calcula sobre la comisión de la agencia
+  // (monto_base × regla.porcentaje), igual que la parte del asesor. O sea que
+  // ese pozo se reparte: una tajada al que vendió y otra al que conduce.
+  // ---------------------------------------------------------------------------
+  const comisionAgencia = Number(montoBase) * Number(regla.porcentaje) / 100
+  const hoy = new Date().toISOString().slice(0, 10)
+
+  const overrideVigente = async (personaId: string) => {
+    const { data } = await adminSupabase
+      .from('supervisor_overrides')
+      .select('pct_equipo, pct_venta_propia')
+      .eq('supervisor_id', personaId)
+      .eq('prepaga_id', params.prepagaId)
+      .eq('activo', true)
+      .lte('vigente_desde', hoy)
+      .order('vigente_desde', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return data
+  }
+
+  // 1. Override del líder sobre la venta de su asesor.
+  //    La guarda supervisorId !== asesorId evita emitir dos veces si alguien
+  //    quedara cargado como líder de sí mismo: ese caso lo cubre el punto 2.
+  if (supervisorId && supervisorId !== params.asesorId) {
+    const ov = await overrideVigente(supervisorId)
+    if (ov?.pct_equipo != null) {
+      filas.push({
+        ...comun,
+        beneficiario_id: supervisorId,
+        supervisor_id: supervisorId,
+        tipo: 'override',
+        porcentaje: ov.pct_equipo,
+        comision_pct_asesor: null,
+        monto_comision: comisionAgencia * Number(ov.pct_equipo) / 100,
+      })
+    }
+  }
+
+  // 2. Override del propio vendedor sobre su venta, si tiene equipo y se le
+  //    cargó `pct_venta_propia`. Que ese campo esté en NULL es exactamente lo
+  //    que significa "no cobra override sobre lo propio".
+  const ovPropio = await overrideVigente(params.asesorId)
+  if (ovPropio?.pct_venta_propia != null) {
+    filas.push({
+      ...comun,
+      beneficiario_id: params.asesorId,
+      supervisor_id: params.asesorId,
+      tipo: 'override',
+      porcentaje: ovPropio.pct_venta_propia,
+      comision_pct_asesor: null,
+      monto_comision: comisionAgencia * Number(ovPropio.pct_venta_propia) / 100,
+    })
+  }
+
+  const { error: errInsert } = await supabase.from('comisiones').insert(filas)
+  if (errInsert) {
+    console.error('generarComisionParaAlta:', errInsert)
+    await supabase.from('activities').insert({
+      lead_id: params.leadId,
+      created_by: params.asesorId,
+      type: 'comision_sin_regla',
+      description: `No se pudieron generar las comisiones: ${errInsert.message}`,
+    })
+  }
 
   const montoFmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(montoComision)
   await supabase.from('activities').insert({
