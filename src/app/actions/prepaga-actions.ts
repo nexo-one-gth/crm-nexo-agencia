@@ -708,13 +708,27 @@ export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, obser
 
   // Venta aprobada por el admin: dispara el cálculo automático de comisión.
   if (estado === 'aprobada') {
-    await generarComisionParaAlta({
-      altaId: id,
-      leadId: altaPrevia.lead_id,
-      prepagaId: altaPrevia.prepaga_id,
-      asesorId: altaPrevia.asesor_id,
-      segmento: altaPrevia.tipo_alta ?? 'particular',
-    })
+    // Sin fallback a 'particular'. Ese default silencioso liquidaba cualquier
+    // alta sin tipo con la escala de particular: en Premedic y DoctoRed, un PMO
+    // que debía pagarse al 7,65% / 7,038% del sueldo bruto se liquidaba al 100%
+    // del valor del plan. Mejor no generar la comisión y que quede el registro,
+    // a generarla mal y que nadie se entere.
+    if (!altaPrevia.tipo_alta) {
+      await supabase.from('activities').insert({
+        lead_id: altaPrevia.lead_id,
+        created_by: user.id,
+        type: 'comision_sin_regla',
+        description: 'No se generó comisión: el alta no tiene tipo (particular / relación de dependencia / monotributo / PMO). Cargalo y volvé a aprobar.',
+      })
+    } else {
+      await generarComisionParaAlta({
+        altaId: id,
+        leadId: altaPrevia.lead_id,
+        prepagaId: altaPrevia.prepaga_id,
+        asesorId: altaPrevia.asesor_id,
+        segmento: altaPrevia.tipo_alta,
+      })
+    }
   }
 
   revalidatePath('/altas')

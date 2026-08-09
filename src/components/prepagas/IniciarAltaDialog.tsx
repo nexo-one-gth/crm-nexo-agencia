@@ -40,11 +40,21 @@ export function IniciarAltaDialog({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    // El tipo de alta define con qué regla comisional se liquida la venta.
+    // Antes era opcional y su default guardaba NULL, con lo cual el generador
+    // caía a 'particular' — y en Premedic/DoctoRed un PMO se liquidaba al 100%
+    // del plan en vez del 7,65% del sueldo bruto.
+    if (!tipoAlta) {
+      setLoading(false)
+      toast.error('Elegí el tipo de alta: define cómo se liquida la comisión')
+      return
+    }
+
     const result = await iniciarAlta({
       lead_id: leadId,
       prepaga_id: prepagaId,
       plan_id: planId || undefined,
-      tipo_alta: tipoAlta || undefined,
+      tipo_alta: tipoAlta,
     })
     setLoading(false)
 
@@ -104,14 +114,15 @@ export function IniciarAltaDialog({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Tipo de alta (opcional)
+              Tipo de alta <span className="text-rose-500">*</span>
             </label>
             <select
+              required
               value={tipoAlta}
               onChange={e => setTipoAlta(e.target.value)}
               className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
             >
-              <option value="">Estándar</option>
+              <option value="" disabled>Elegí una opción…</option>
               {TIPOS_ALTA.map(t => (
                 <option key={t} value={t}>
                   {t === 'particular' ? 'Particular' :
