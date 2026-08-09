@@ -6,30 +6,38 @@
 
 ---
 
-## Los dos porcentajes, que conviene no mezclar
+## El modelo de cálculo (definido 2026-08-08)
+
+**Todos los porcentajes están en la misma unidad: % de la cuota.** Son escalas independientes que se restan; ninguna se multiplica por otra.
 
 ```
-prepaga_comision_reglas.porcentaje   →  lo que la PREPAGA le paga a NEXO
-prepaga_asesores.comision_pct        →  lo que de eso se lleva EL ASESOR
+facturación NEXO   =  cuota × prepaga_comision_reglas.porcentaje    260% → 130.000
+pago al asesor     =  cuota × prepaga_asesores.comision_pct         180% →  90.000
+override del líder =  cuota × supervisor_overrides.pct_equipo
+─────────────────────────────────────────────────────────────────────────────────
+margen NEXO        =  facturación − suma de todos los pagos de esa venta
 ```
 
-El generador multiplica: `monto_base × regla.porcentaje × comision_pct_asesor`.
+La prepaga le paga al broker un múltiplo de la cuota —260%, 200%, 180% según prepaga y condición— y de ahí sale lo que cobra el asesor. **El PDF de condiciones dice "100%" en todos los casos: ese documento no refleja los valores reales que se negocian.** Los carga a mano el administrador en `/admin/comisiones/reglas`.
 
-Según el PDF, **todas las prepagas pagan el 100%** del valor comisional. Lo que varía entre ellas es la *base* del cálculo, no el porcentaje.
+> La versión original del generador **multiplicaba** el porcentaje de la prepaga por el del asesor. Eso solo tiene sentido si el segundo es una porción del primero; con ambos sobre la cuota daba absurdos (50.000 × 2,6 × 1,8 = 234.000). Corregido.
+
+**La facturación no se guarda como campo aparte:** la fila `directa` de cada venta ya lleva `monto_base` y `porcentaje` (el de la prepaga), así que sale de ahí. El margen por venta es esa facturación menos la suma de todas las filas de comisión de esa alta.
 
 ---
 
-## 1. 🔴 Todos los asesores se llevan el 100%
+## 1. 🔴 Faltan cargar los porcentajes reales
 
 ```
+20 reglas de prepaga        → todas en 100    (deberían ser 260 / 200 / 180…)
 17 asignaciones asesor↔prepaga
-  10 con comision_pct cargado → las 10 en 100%
-   7 en NULL                  → el generador las trata como 100%
+  10 con comision_pct       → todas en 100
+   7 en NULL
 ```
 
-En la configuración actual **NEXO no retiene nada**. O es intencional, o son valores de relleno.
+Ninguno de estos números es real. Con el modelo nuevo, un 100 en la regla de la prepaga significa que NEXO factura exactamente la cuota, y un 100 en el asesor significa que se lleva todo: **margen cero**.
 
-El `NULL` es el caso más riesgoso: el panel muestra "Sin comisión definida" pero el generador liquida el total igual. Debería decidirse si `NULL` significa 100% o si debe frenar la generación.
+**Cambio de comportamiento aplicado:** si el asesor no tiene porcentaje cargado, ya **no se genera** la comisión — queda una actividad en el lead explicando por qué. Antes el `NULL` se trataba como "×1" y liquidaba el total en silencio. Esto significa que las 7 asignaciones sin porcentaje van a frenar aprobaciones hasta que se completen.
 
 ---
 
@@ -61,16 +69,27 @@ Y `prepaga_asesores` no tiene dimensión `origen`: es un único `comision_pct` p
 
 ---
 
-## 4. ⚠️ Sobre qué base se calcula el override del líder
+## 4. ✅ Base del override — resuelto
 
-Ya marcado en `MODELO_ROLES.md`. El generador asume **porcentaje sobre la comisión de la agencia**:
+Es % de la cuota, como todo el resto. Ver el modelo de cálculo arriba.
 
+---
+
+## 4bis. Módulo de facturación y margen (pedido, no construido)
+
+Pantalla que muestre **facturación total, pago de comisiones y margen de NEXO**. Todos los datos ya existen por venta:
+
+```sql
+-- por alta
+facturacion = (SELECT monto_base * porcentaje / 100
+                 FROM comisiones WHERE alta_id = X AND tipo = 'directa')
+pagos       = (SELECT sum(monto_comision) FROM comisiones WHERE alta_id = X)
+margen      = facturacion - pagos
 ```
-cuota 1000 · regla 10%  →  la agencia gana 100
-override del líder 10%  →  $10        (si fuera sobre la cuota: $100)
-```
 
-Bloqueante antes de cargar el primer porcentaje en `supervisor_overrides`.
+Agrupable por prepaga, mes, asesor o equipo. **No requiere cambios de schema.**
+
+Un detalle a definir: qué hacer con las ventas cuyo margen sea negativo —si el asesor más el líder superan lo que paga la prepaga—. Hoy nada lo impide, y es un error de carga probable.
 
 ---
 

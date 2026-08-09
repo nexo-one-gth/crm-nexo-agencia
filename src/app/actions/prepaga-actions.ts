@@ -826,8 +826,24 @@ async function generarComisionParaAlta(params: {
     return
   }
 
-  // Override por asesor: % que le corresponde sobre la comisión de la regla
-  // (prepaga_asesores.comision_pct, cargado al asignar el asesor a la prepaga).
+  // ---------------------------------------------------------------------------
+  // MODELO DE CÁLCULO
+  //
+  // Todos los porcentajes se expresan en la MISMA unidad: % de la cuota.
+  // Son escalas independientes, no se multiplican entre sí.
+  //
+  //   facturación NEXO  = cuota × regla.porcentaje   (ej. 260% → 130.000)
+  //   pago al asesor    = cuota × comision_pct       (ej. 180% →  90.000)
+  //   override líder    = cuota × pct_equipo
+  //   margen NEXO       = facturación − suma de todos los pagos de esa venta
+  //
+  // La versión anterior MULTIPLICABA los dos porcentajes, lo que solo tiene
+  // sentido si el del asesor es una porción del de la agencia. Con ambos sobre
+  // la cuota, multiplicar da cualquier cosa: 50.000 × 2,6 × 1,8 = 234.000.
+  //
+  // La facturación no se guarda aparte: la fila `directa` ya lleva `monto_base`
+  // y `porcentaje` (el de la prepaga), así que sale de ahí.
+  // ---------------------------------------------------------------------------
   const adminSupabase = createAdminClient()
   const { data: asignacion } = await adminSupabase
     .from('prepaga_asesores')
@@ -837,8 +853,21 @@ async function generarComisionParaAlta(params: {
     .maybeSingle()
   const pctAsesor = asignacion?.comision_pct ?? null
 
-  const montoComision = Number(montoBase) * Number(regla.porcentaje) / 100
-    * (pctAsesor !== null ? Number(pctAsesor) / 100 : 1)
+  // Sin porcentaje cargado no se puede saber cuánto cobra el asesor. Antes el
+  // NULL se trataba como "×1", que con el modelo viejo significaba llevarse
+  // toda la comisión de la agencia. Es preferible no generar nada y que quede
+  // el registro, a pagar de más en silencio.
+  if (pctAsesor === null) {
+    await supabase.from('activities').insert({
+      lead_id: params.leadId,
+      created_by: params.asesorId,
+      type: 'comision_sin_regla',
+      description: 'No se generó comisión: el asesor no tiene porcentaje cargado para esta prepaga. Cargalo en el panel de administración y volvé a aprobar el alta.',
+    })
+    return
+  }
+
+  const montoComision = Number(montoBase) * Number(pctAsesor) / 100
 
   const cierre = await getOrCreateCierreAbierto(supabase, params.prepagaId)
 
@@ -889,11 +918,10 @@ async function generarComisionParaAlta(params: {
   // persona no cobraría y no habría ningún error que lo delate: simplemente
   // faltaría una fila en la liquidación.
   //
-  // El override se calcula sobre la comisión de la agencia
-  // (monto_base × regla.porcentaje), igual que la parte del asesor. O sea que
-  // ese pozo se reparte: una tajada al que vendió y otra al que conduce.
+  // El override es % DE LA CUOTA, igual que el de la prepaga y el del asesor.
+  // Todos los porcentajes del sistema están en la misma unidad y se restan
+  // contra la facturación; ninguno se multiplica por otro.
   // ---------------------------------------------------------------------------
-  const comisionAgencia = Number(montoBase) * Number(regla.porcentaje) / 100
   const hoy = new Date().toISOString().slice(0, 10)
 
   const overrideVigente = async (personaId: string) => {
@@ -923,7 +951,7 @@ async function generarComisionParaAlta(params: {
         tipo: 'override',
         porcentaje: ov.pct_equipo,
         comision_pct_asesor: null,
-        monto_comision: comisionAgencia * Number(ov.pct_equipo) / 100,
+        monto_comision: Number(montoBase) * Number(ov.pct_equipo) / 100,
       })
     }
   }
@@ -940,7 +968,7 @@ async function generarComisionParaAlta(params: {
       tipo: 'override',
       porcentaje: ovPropio.pct_venta_propia,
       comision_pct_asesor: null,
-      monto_comision: comisionAgencia * Number(ovPropio.pct_venta_propia) / 100,
+      monto_comision: Number(montoBase) * Number(ovPropio.pct_venta_propia) / 100,
     })
   }
 

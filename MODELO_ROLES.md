@@ -296,27 +296,22 @@ Además, índice en `comisiones (beneficiario_id)` y `comisiones (supervisor_id)
 
 ## 5. Pendientes de definición
 
-> ### ⚠️ ABIERTO: sobre qué se calcula el override
+> ### ✅ RESUELTO: sobre qué se calcula el override
 >
-> **Nadie confirmó esto todavía.** El generador está implementado asumiendo que
-> el override es un porcentaje **sobre la comisión de la agencia**, no sobre la
-> cuota del socio:
+> **Todos los porcentajes del sistema están en la misma unidad: % de la cuota.**
+> Son escalas independientes que se restan, nunca se multiplican entre sí.
 >
 > ```
-> cuota 1000 · regla de la prepaga 10%  →  la agencia gana 100
-> override del líder 10%                →  $10
+> facturación NEXO   =  cuota × pct de la prepaga    (260% → 130.000)
+> pago al asesor     =  cuota × pct del asesor       (180% →  90.000)
+> override del líder =  cuota × pct_equipo
+> margen NEXO        =  facturación − suma de todos los pagos de esa venta
 > ```
 >
-> Si el criterio real fuera un porcentaje **sobre la cuota**, ese mismo 10%
-> serían $100 — diez veces más. Es una línea de código, pero los números no se
-> parecen en nada.
->
-> **Por qué se puede postergar sin riesgo:** `supervisor_overrides` está vacía.
-> Sin porcentajes cargados el generador no emite ninguna fila de override, así
-> que no hay forma de liquidar mal. **Resolver esto ANTES de cargar el primer
-> porcentaje**, y de paso revisar el módulo de comisiones completo.
->
-> Ver `generarComisionParaAlta()` en `src/app/actions/prepaga-actions.ts`.
+> La versión original multiplicaba el porcentaje de la prepaga por el del
+> asesor, lo que solo tiene sentido si el segundo es una porción del primero.
+> Con ambos sobre la cuota, multiplicar daba absurdos: 50.000 × 2,6 × 1,8 =
+> 234.000. Corregido en `generarComisionParaAlta()`.
 
 
 1. **¿El supervisor aprueba ventas de su equipo, o solo admin para arriba?** No quedó cubierto. Cambia una política de `altas`.
