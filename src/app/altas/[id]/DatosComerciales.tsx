@@ -6,9 +6,11 @@ import { BadgeDollarSign, Save } from 'lucide-react'
 import { guardarDatosComerciales } from '@/app/actions/prepaga-actions'
 import { useRouter } from 'next/navigation'
 
+type TipoAlta = 'particular' | 'relacion_dependencia' | 'monotributo' | 'pmo'
+
 type Datos = {
   plan_codigo: string | null
-  condicion: string | null
+  tipo_alta: string | null
   cantidad_capitas: number | null
   cuota: number | null
   aportes_promedio: number | null
@@ -18,12 +20,19 @@ type Datos = {
 
 const num = (v: string) => (v.trim() === '' ? null : Number(v))
 
+const TIPOS_ALTA: { value: TipoAlta; label: string }[] = [
+  { value: 'particular', label: 'Particular / Directo' },
+  { value: 'relacion_dependencia', label: 'Relación de dependencia' },
+  { value: 'monotributo', label: 'Monotributo' },
+  { value: 'pmo', label: 'PMO / Aportes (afinidad)' },
+]
+
 export function DatosComerciales({ altaId, datos }: { altaId: string; datos: Datos }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [form, setForm] = useState({
     plan_codigo: datos.plan_codigo ?? '',
-    condicion: datos.condicion ?? '',
+    tipo_alta: datos.tipo_alta ?? '',
     cantidad_capitas: datos.cantidad_capitas?.toString() ?? '',
     cuota: datos.cuota?.toString() ?? '',
     aportes_promedio: datos.aportes_promedio?.toString() ?? '',
@@ -39,7 +48,7 @@ export function DatosComerciales({ altaId, datos }: { altaId: string; datos: Dat
       const res = await guardarDatosComerciales({
         alta_id: altaId,
         plan_codigo: form.plan_codigo || null,
-        condicion: form.condicion || null,
+        tipo_alta: (form.tipo_alta || null) as TipoAlta | null,
         cantidad_capitas: num(form.cantidad_capitas),
         cuota: num(form.cuota),
         aportes_promedio: num(form.aportes_promedio),
@@ -68,8 +77,17 @@ export function DatosComerciales({ altaId, datos }: { altaId: string; datos: Dat
           <input className={field} value={form.plan_codigo} onChange={set('plan_codigo')} placeholder="GA1506" />
         </div>
         <div>
-          <label className={label}>Condición</label>
-          <input className={field} value={form.condicion} onChange={set('condicion')} placeholder="Desregulados" />
+          <label className={label}>Tipo de alta — define la comisión</label>
+          <select
+            className={field}
+            value={form.tipo_alta}
+            onChange={e => setForm(f => ({ ...f, tipo_alta: e.target.value }))}
+          >
+            <option value="">Sin definir</option>
+            {TIPOS_ALTA.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className={label}>Cápitas</label>

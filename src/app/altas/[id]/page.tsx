@@ -183,7 +183,7 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
         altaId={alta.id}
         datos={{
           plan_codigo: alta.plan_codigo ?? null,
-          condicion: alta.condicion ?? null,
+          tipo_alta: alta.tipo_alta ?? null,
           cantidad_capitas: alta.cantidad_capitas ?? null,
           cuota: alta.cuota ?? null,
           aportes_promedio: alta.aportes_promedio ?? null,

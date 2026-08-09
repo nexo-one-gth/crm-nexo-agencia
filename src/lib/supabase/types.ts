@@ -237,7 +237,6 @@ export type Database = {
           aportes_promedio: number | null
           asesor_id: string
           cantidad_capitas: number | null
-          condicion: string | null
           created_at: string
           cuota: number | null
           drive_folder_id: string | null
@@ -263,7 +262,6 @@ export type Database = {
           aportes_promedio?: number | null
           asesor_id: string
           cantidad_capitas?: number | null
-          condicion?: string | null
           created_at?: string
           cuota?: number | null
           drive_folder_id?: string | null
@@ -289,7 +287,6 @@ export type Database = {
           aportes_promedio?: number | null
           asesor_id?: string
           cantidad_capitas?: number | null
-          condicion?: string | null
           created_at?: string
           cuota?: number | null
           drive_folder_id?: string | null
@@ -1692,9 +1689,13 @@ export type Database = {
       }
     }
     Functions: {
+      auth_asesores_visibles: { Args: never; Returns: string[] }
       auth_is_admin: { Args: never; Returns: boolean }
       auth_is_admin_principal: { Args: never; Returns: boolean }
       auth_is_supervisor: { Args: never; Returns: boolean }
+      auth_puede_asignar: { Args: never; Returns: boolean }
+      auth_puede_escribir: { Args: never; Returns: boolean }
+      auth_puede_ver_asesor: { Args: { target: string }; Returns: boolean }
     }
     Enums: {
       user_role: "admin" | "supervisor" | "sales_executive" | "asesor"

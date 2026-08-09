@@ -788,6 +788,20 @@ async function generarComisionParaAlta(params: {
     .eq('id', params.leadId)
     .single()
 
+  // Los importes del ALTA mandan sobre los del lead. El lead trae lo cotizado,
+  // que es una etapa previa y puede haber quedado vieja: se renegoció, cambió
+  // el descuento, se dio de alta un plan distinto. El alta tiene el número con
+  // el que la venta se emitió de verdad.
+  //
+  // Antes se liquidaba siempre contra el lead, así que un asesor podía cargar
+  // la cuota correcta en el alta y ver la comisión calculada sobre otra cifra,
+  // sin ninguna señal de que eso estaba pasando.
+  const { data: altaDatos } = await supabase
+    .from('altas')
+    .select('cuota, sueldo_bruto')
+    .eq('id', params.altaId)
+    .single()
+
   const origen = lead?.origen ?? 'nexo'
 
   // La escala depende del origen del dato: regla específica del origen primero,
@@ -812,8 +826,8 @@ async function generarComisionParaAlta(params: {
   }
 
   const montoBase = regla.tipo_base === 'pct_sueldo_bruto'
-    ? lead?.sueldo_bruto
-    : lead?.valor_final_socio
+    ? (altaDatos?.sueldo_bruto ?? lead?.sueldo_bruto)
+    : (altaDatos?.cuota ?? lead?.valor_final_socio)
 
   if (montoBase === null || montoBase === undefined) {
     const campoFaltante = regla.tipo_base === 'pct_sueldo_bruto' ? 'sueldo bruto' : 'cuota mensual'
@@ -821,7 +835,7 @@ async function generarComisionParaAlta(params: {
       lead_id: params.leadId,
       created_by: params.asesorId,
       type: 'comision_sin_regla',
-      description: `No se pudo calcular la comisión: falta el dato "${campoFaltante}" en el lead`,
+      description: `No se pudo calcular la comisión: falta el dato "${campoFaltante}". Cargalo en los datos del trámite del alta y volvé a aprobar.`,
     })
     return
   }
@@ -1323,7 +1337,10 @@ export async function subirAdjuntoDrive(formData: FormData) {
 const DatosComercialesSchema = z.object({
   alta_id: z.string().uuid(),
   plan_codigo: z.string().optional().nullable(),
-  condicion: z.string().optional().nullable(),
+  // `tipo_alta` reemplaza al viejo campo libre `condicion`. Eran el mismo
+  // concepto duplicado: uno se mostraba en pantalla y el otro definía la escala
+  // comisional, sin nada que impidiera que dijeran cosas distintas.
+  tipo_alta: z.enum(['particular', 'relacion_dependencia', 'monotributo', 'pmo']).optional().nullable(),
   cantidad_capitas: z.number().int().nonnegative().optional().nullable(),
   cuota: z.number().nonnegative().optional().nullable(),
   aportes_promedio: z.number().nonnegative().optional().nullable(),
@@ -1440,6 +1457,18 @@ export async function eliminarIntegrante(id: string, altaId: string) {
 // ALTAS — resumen del trámite (texto + documento en Drive)
 // ---------------------------------------------------------------------------
 
+// El resumen que se envía a procesar sigue hablando de "condición", que es el
+// vocabulario de las prepagas. Lo que cambió es de dónde sale: antes era un
+// campo libre propio, ahora se deriva de `tipo_alta`, que es el mismo dato con
+// el que se liquida la comisión. Así el texto que se manda y la plata que se
+// paga no pueden decir cosas distintas.
+const TIPO_ALTA_LABEL: Record<string, string> = {
+  particular: 'Directo / Particular',
+  relacion_dependencia: 'Relación de dependencia',
+  monotributo: 'Monotributo',
+  pmo: 'PMO / Aportes',
+}
+
 export async function generarResumenAlta(altaId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -1448,7 +1477,7 @@ export async function generarResumenAlta(altaId: string) {
   const { data: alta } = await supabase
     .from('altas')
     .select(`
-      id, drive_folder_id, plan_codigo, condicion, cantidad_capitas, cuota,
+      id, drive_folder_id, plan_codigo, tipo_alta, cantidad_capitas, cuota,
       aportes_promedio, sueldo_bruto, periodo_aportes, plantilla_id,
       prepagas(nombre, slug),
       prepaga_planes(nombre)
@@ -1486,7 +1515,7 @@ export async function generarResumenAlta(altaId: string) {
       prepagaSlug: prepaga?.slug ?? '',
       planNombre: plan?.nombre ?? null,
       planCodigo: alta.plan_codigo,
-      condicion: alta.condicion,
+      condicion: TIPO_ALTA_LABEL[alta.tipo_alta ?? ''] ?? alta.tipo_alta,
       cantidadCapitas: alta.cantidad_capitas,
       cuota: alta.cuota,
       aportesPromedio: alta.aportes_promedio,
