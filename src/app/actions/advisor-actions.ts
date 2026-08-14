@@ -117,10 +117,15 @@ export const getAdvisors = async (): Promise<ActionResponse<Record<string, unkno
 export const getAsesoresParaAsignar = async (): Promise<ActionResponse<Record<string, unknown>[]>> => {
     const supabase = await createClient()
 
+    // Quién puede RECIBIR leads lo define `aparecer_en_tablero`, no el rol.
+    // Antes la condición era "asesor, o admin con el flag", así que un
+    // supervisor o un admin_principal que además vendieran quedaban afuera y no
+    // se les podía asignar nada. El flag existe justamente para marcar "esta
+    // persona vende", sea cual sea su nivel jerárquico.
     const { data, error } = await supabase
         .from('profiles')
         .select('id, first_name, last_name, email, role, aparecer_en_tablero')
-        .or('role.eq.asesor,and(role.eq.admin,aparecer_en_tablero.eq.true)')
+        .or('role.eq.asesor,aparecer_en_tablero.eq.true')
         .order('first_name', { ascending: true })
 
     if (error) return { success: false, error: error.message }

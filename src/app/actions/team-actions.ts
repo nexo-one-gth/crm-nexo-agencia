@@ -54,6 +54,19 @@ export async function getMiEquipoReparto(): Promise<{ data?: MiEquipoData; error
     asesorIds = (data ?? []).map(a => a.asesor_id)
   }
 
+  // El que reparte también puede quedarse leads, si además vende. Carolina es
+  // admin, conduce un equipo de 4 y tiene su propia cartera de 153 leads; sin
+  // esto no aparecía en su propia pantalla de reparto y podía darle un lead a
+  // cualquiera de su equipo menos a sí misma.
+  //
+  // La condición es `aparecer_en_tablero`, no el rol: es el flag que marca
+  // "esta persona vende".
+  const { data: perfilCaller } = await supabase
+    .from('profiles').select('aparecer_en_tablero').eq('id', callerId).single()
+  if (perfilCaller?.aparecer_en_tablero && !asesorIds.includes(callerId)) {
+    asesorIds = [callerId, ...asesorIds]
+  }
+
   // Perfiles del equipo
   const perfiles = asesorIds.length
     ? (await supabase
