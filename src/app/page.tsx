@@ -1,5 +1,6 @@
 // Deployment trigger
 import { createClient } from '@/lib/supabase/server'
+import { isSupervisorOrAdminRole } from '@/lib/supabase/assert-admin'
 import { Users, Target, MessageCircle, BarChart3, Clock, FileText, ChevronRight, TrendingUp, BadgeDollarSign } from 'lucide-react'
 import Link from 'next/link'
 
@@ -24,12 +25,18 @@ export default async function DashboardPage() {
 
   // Paralelizar todas las queries independientes (BUG 2)
   const [
+    { data: perfilPropio },
     { data: stageData },
     { data: recentActivities },
     { data: activeCampaigns },
     { count: altasActivas },
     { data: comisionesPendientes },
   ] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single(),
     supabase
       .from('leads')
       .select('pipeline_stages(name), valor_forecast')
@@ -59,6 +66,10 @@ export default async function DashboardPage() {
       .eq('asesor_id', user.id)
       .eq('estado', 'pendiente'),
   ])
+
+  // Conduce equipo: admin | admin_principal | supervisor. Mismo helper que usa /funnel,
+  // para que "quién ve los descartes" se defina en un solo lugar y no divergan las vistas.
+  const conduceEquipo = isSupervisorOrAdminRole(perfilPropio?.role)
 
   // Derivar totalLeads y stageCounts de una sola query (BUG 3)
   type StageRow = { pipeline_stages: { name: string } | { name: string }[] | null; valor_forecast?: number | null; [key: string]: unknown }
@@ -181,21 +192,27 @@ export default async function DashboardPage() {
             Estado del Embudo
           </h3>
           <div className="space-y-3 sm:space-y-4">
+            {/* El destino de cada barra sigue a dónde vive la etapa, no al embudo por
+                defecto: 'Alta en Proceso' y 'Ganado' ya no son columnas del tablero
+                (el lead egresa a /altas), y 'No Interesado' solo lo ve conducción.
+                Sin esto los tres links caían en la primera columna sin avisar. */}
             {[
-              { name: 'Pendiente',       gradient: 'from-blue-600 to-blue-400' },
-              { name: 'Contactado',      gradient: 'from-green-600 to-green-400' },
-              { name: 'Interesado',      gradient: 'from-purple-600 to-purple-400' },
-              { name: 'Cotizado',        gradient: 'from-amber-600 to-amber-400' },
-              { name: 'Alta en Proceso', gradient: 'from-emerald-600 to-teal-400' },
-              { name: 'Ganado',          gradient: 'from-green-600 to-green-400' },
-              { name: 'No Interesado',   gradient: 'from-slate-600 to-slate-400' },
-            ].map(({ name, gradient }) => {
+              { name: 'Pendiente',       gradient: 'from-blue-600 to-blue-400',     href: '/funnel?stage=Pendiente' },
+              { name: 'Contactado',      gradient: 'from-green-600 to-green-400',   href: '/funnel?stage=Contactado' },
+              { name: 'Interesado',      gradient: 'from-purple-600 to-purple-400', href: '/funnel?stage=Interesado' },
+              { name: 'Cotizado',        gradient: 'from-amber-600 to-amber-400',   href: '/funnel?stage=Cotizado' },
+              { name: 'Alta en Proceso', gradient: 'from-emerald-600 to-teal-400',  href: '/altas' },
+              { name: 'Ganado',          gradient: 'from-green-600 to-green-400',   href: '/altas' },
+              ...(conduceEquipo
+                ? [{ name: 'No Interesado', gradient: 'from-slate-600 to-slate-400', href: `/funnel?stage=${encodeURIComponent('No Interesado')}` }]
+                : []),
+            ].map(({ name, gradient, href }) => {
               const count = stageCounts[name] || 0
               const percentage = (totalLeads || 0) > 0 ? (count / (totalLeads || 1)) * 100 : 0
               return (
                 <Link
                   key={name}
-                  href={`/funnel?stage=${encodeURIComponent(name)}`}
+                  href={href}
                   className="block space-y-1.5 sm:space-y-2 group rounded-xl p-2 -m-2 hover:bg-white/10 transition-colors"
                 >
                   <div className="flex justify-between items-center text-sm">

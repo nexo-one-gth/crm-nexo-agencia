@@ -60,6 +60,12 @@ interface LeadFunnelBoardProps {
     initialLeads: Lead[]
     isAdmin?: boolean
     isAdminPrincipal?: boolean
+    /**
+     * Conduce equipo (admin | admin_principal | supervisor). Se calcula en el server
+     * con isSupervisorOrAdminRole(): habilita la columna de descartes. Es distinto de
+     * `isAdmin`, que acá significa "gestiona el reparto de leads".
+     */
+    conduceEquipo?: boolean
     advisorToAdmin?: AdvisorToAdmin
     initialStage?: string
     userProfile?: {
@@ -71,15 +77,38 @@ interface LeadFunnelBoardProps {
 // El color de cada etapa viene de stage-colors.ts (única fuente de verdad, compartida
 // con LeadCard) para que el header de columna, la banda lateral de la card y el botón
 // de avance de etapa siempre pinten lo mismo.
-const STAGES = [
-    { name: 'Pendiente de Asignación', icon: UserMinus, ...getStageColor('Pendiente de Asignación'), adminOnly: true },
-    { name: 'Pendiente', icon: Clock, ...getStageColor('Pendiente'), adminOnly: false },
-    { name: 'Contactado', icon: MessageCircle, ...getStageColor('Contactado'), adminOnly: false },
-    { name: 'Interesado', icon: CheckCircle2, ...getStageColor('Interesado'), adminOnly: false },
-    { name: 'Cotizado', icon: DollarSign, ...getStageColor('Cotizado'), adminOnly: false },
-    { name: 'Alta en Proceso', icon: FileUp, ...getStageColor('Alta en Proceso'), adminOnly: false },
-    { name: 'Ganado', icon: UserCheck, ...getStageColor('Ganado'), adminOnly: false },
-    { name: 'No Interesado', icon: AlertCircle, ...getStageColor('No Interesado'), adminOnly: false },
+//
+// El tablero corta en "Cotizado" a propósito: 'Alta en Proceso' y 'Ganado' siguen
+// existiendo en pipeline_stages y el flujo cotización→alta las sigue seteando, pero
+// el embudo es gestión comercial previa. Una vez iniciada el alta, el lead se sigue
+// en /altas y /comisiones. No agregar acá esas columnas de nuevo: si hace falta ver
+// cuántas altas hay, el dato vive en /altas.
+//
+// `audiencia` define quién ve la columna. Se resuelve con flags que llegan del server
+// (derivadas de los helpers de assert-admin), no con listas de roles escritas acá:
+//   'todos'      → cualquier usuario del CRM
+//   'admin'      → admin | admin_principal (reparto de leads sin asignar)
+//   'conduccion' → quien conduce equipo: admin | admin_principal | supervisor
+type StageAudiencia = 'todos' | 'admin' | 'conduccion'
+
+const STAGES: Array<{
+    name: string
+    icon: typeof Clock
+    gradient: string
+    solid: string
+    text: string
+    bg: string
+    border: string
+    audiencia: StageAudiencia
+}> = [
+    { name: 'Pendiente de Asignación', icon: UserMinus, ...getStageColor('Pendiente de Asignación'), audiencia: 'admin' },
+    { name: 'Pendiente', icon: Clock, ...getStageColor('Pendiente'), audiencia: 'todos' },
+    { name: 'Contactado', icon: MessageCircle, ...getStageColor('Contactado'), audiencia: 'todos' },
+    { name: 'Interesado', icon: CheckCircle2, ...getStageColor('Interesado'), audiencia: 'todos' },
+    { name: 'Cotizado', icon: DollarSign, ...getStageColor('Cotizado'), audiencia: 'todos' },
+    // El descarte lo hace el asesor (botón X de la card) pero la columna es de
+    // revisión: la ve quien conduce equipo, para auditar motivos y recuperar leads.
+    { name: 'No Interesado', icon: AlertCircle, ...getStageColor('No Interesado'), audiencia: 'conduccion' },
 ]
 
 type SortMode = 'recent' | 'name' | 'forecast'
@@ -99,7 +128,7 @@ const sortLeads = (leads: Lead[], mode: SortMode): Lead[] => {
     })
 }
 
-export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advisorToAdmin, initialStage, userProfile }: LeadFunnelBoardProps) => {
+export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, conduceEquipo, advisorToAdmin, initialStage, userProfile }: LeadFunnelBoardProps) => {
     const leads = initialLeads
     const [isImportOpen, setIsImportOpen] = useState(false)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -126,12 +155,22 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
     const [canScrollRight, setCanScrollRight] = useState(false)
     const router = useRouter()
 
-    const effectiveStages = isAdmin ? STAGES : STAGES.filter(s => !s.adminOnly)
+    const effectiveStages = useMemo(() => STAGES.filter(s => {
+        if (s.audiencia === 'admin') return !!isAdmin
+        if (s.audiencia === 'conduccion') return !!conduceEquipo
+        return true
+    }), [isAdmin, conduceEquipo])
 
     const initialTabIndex = initialStage
         ? effectiveStages.findIndex(s => s.name === initialStage)
         : 0
     const [activeTab, setActiveTab] = useState(initialTabIndex >= 0 ? initialTabIndex : 0)
+
+    // Guarda de índice: si el set de columnas se achica (etapa removida, cambio de
+    // permisos), un activeTab viejo apuntaría fuera del array y el selector móvil
+    // reventaría al leer effectiveStages[activeTab].
+    const safeTab = activeTab < effectiveStages.length ? activeTab : 0
+    const activeStage = effectiveStages[safeTab]
 
     // Actualización automática cuando cambian leads via Realtime
     useEffect(() => {
@@ -652,13 +691,13 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
                 <div ref={stageMenuRef} className="relative w-full">
                     <button
                         onClick={() => setIsStageMenuOpen(o => !o)}
-                        className={`glass-input w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${effectiveStages[activeTab].text}`}
+                        className={`glass-input w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${activeStage.text}`}
                     >
                         <span className="flex items-center gap-2 min-w-0">
-                            {(() => { const Icon = effectiveStages[activeTab].icon; return <Icon className="w-4 h-4 shrink-0" /> })()}
-                            <span className="truncate">{effectiveStages[activeTab].name}</span>
+                            {(() => { const Icon = activeStage.icon; return <Icon className="w-4 h-4 shrink-0" /> })()}
+                            <span className="truncate">{activeStage.name}</span>
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/10 dark:bg-white/10 shrink-0">
-                                {getStageLeads(effectiveStages[activeTab].name).length}
+                                {getStageLeads(activeStage.name).length}
                             </span>
                         </span>
                         <ChevronDown className={`w-4 h-4 shrink-0 text-slate-500 transition-transform ${isStageMenuOpen ? 'rotate-180' : ''}`} />
@@ -668,7 +707,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
                         <div className="absolute left-0 right-0 top-full mt-1.5 z-30 glass-card rounded-xl overflow-hidden py-1 max-h-[60vh] overflow-y-auto custom-scrollbar">
                             {effectiveStages.map((stage, idx) => {
                                 const count = getStageLeads(stage.name).length
-                                const isActive = activeTab === idx
+                                const isActive = safeTab === idx
                                 return (
                                     <button
                                         key={stage.name}
@@ -689,7 +728,7 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
 
                 <div className="mt-3">
                     {effectiveStages.map((stage, idx) => {
-                        if (idx !== activeTab) return null
+                        if (idx !== safeTab) return null
                         const stageLeads = getStageLeads(stage.name)
 
                         return (
@@ -710,7 +749,8 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
                                         <span className={`text-sm font-bold ${stage.text}`}>{stageLeads.length} leads</span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        {stage.name === 'No Interesado' && isAdmin && (
+                                        {/* Sin guarda de rol: la columna ya solo existe para quien conduce equipo */}
+                                        {stage.name === 'No Interesado' && (
                                             <div className="relative">
                                                 <select
                                                     value={discardFilter}
@@ -771,7 +811,8 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, advis
                                             {stageLeads.length > 0 && stageLeads.every(l => selectedLeads.includes(l.id)) ? '✓ Todos' : 'Todos'}
                                         </button>
                                     )}
-                                    {stage.name === 'No Interesado' && isAdmin && (
+                                    {/* Sin guarda de rol: la columna ya solo existe para quien conduce equipo */}
+                                    {stage.name === 'No Interesado' && (
                                         <div className="relative">
                                             <select
                                                 value={discardFilter}

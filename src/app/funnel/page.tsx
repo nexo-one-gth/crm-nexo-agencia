@@ -3,6 +3,7 @@ import { LeadFunnelBoard } from '@/components/leads/LeadFunnelBoard'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { isAdminRole, isSupervisorOrAdminRole } from '@/lib/supabase/assert-admin'
 
 export type AdvisorToAdmin = Record<string, { id: string; name: string }>
 
@@ -17,6 +18,10 @@ export default async function FunnelPage({
 
     let isAdmin = false
     let isAdminPrincipal = false
+    // Conduce equipo: admin | admin_principal | supervisor. Se deriva del helper y no
+    // de una lista de roles escrita acá, que es el bug que más se repitió en este repo
+    // (un supervisor —o una admin con cartera propia— queda afuera de la condición).
+    let conduceEquipo = false
     let userProfile = null
     let advisorToAdmin: AdvisorToAdmin = {}
 
@@ -27,8 +32,9 @@ export default async function FunnelPage({
             .eq('id', user.id)
             .single()
 
-        isAdmin = profile?.role === 'admin' || profile?.role === 'admin_principal'
+        isAdmin = isAdminRole(profile?.role)
         isAdminPrincipal = profile?.role === 'admin_principal'
+        conduceEquipo = isSupervisorOrAdminRole(profile?.role)
         userProfile = profile ? {
             full_name: `${profile.first_name} ${profile.last_name}`,
             whatsapp_name: profile.first_name
@@ -87,6 +93,7 @@ export default async function FunnelPage({
                 initialLeads={leads as any}
                 isAdmin={isAdmin}
                 isAdminPrincipal={isAdminPrincipal}
+                conduceEquipo={conduceEquipo}
                 advisorToAdmin={advisorToAdmin}
                 userProfile={userProfile}
                 initialStage={params.stage}
