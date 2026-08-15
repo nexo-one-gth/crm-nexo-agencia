@@ -143,8 +143,15 @@ export async function createLead(values: { first_name: string; last_name: string
             notes: values.notes,
             pipeline_stage_id: stage.id,
             assigned_to: user.id, // Auto-assign to the advisor
+            // Quién trajo el dato. Antes solo quedaba en el historial de
+            // actividades; tenerlo en el lead permite responder "¿este dato lo
+            // trajo un asesor o vino de Nexo?" sin reconstruir el timeline, que
+            // es justamente lo que distingue la escala comisional.
+            created_by: user.id,
             source: values.source || 'App Asesores',
-            origen: 'referido' // Lead cargado por el asesor → escala comisional de referido
+            // Cargado a mano por un usuario del CRM → referido. Los de Nexo
+            // entran por importación y nacen con origen 'nexo' o 'campania'.
+            origen: 'referido'
         })
         .select()
         .single()
@@ -208,33 +215,28 @@ export async function getAllLeads() {
 
     if (profile?.role === 'admin_principal') {
         // admin_principal ve todos los leads sin filtro adicional
-    } else if (isAdminRole(profile?.role)) {
-        // admin regular: solo los leads de sus asesores asignados
-        const { data: adminAsesores } = await supabase
+    } else if (isAdminRole(profile?.role) || isSupervisorRole(profile?.role)) {
+        // Quien conduce un equipo ve: los leads de su equipo, LOS PROPIOS, y el
+        // pool sin asignar.
+        //
+        // Las ramas de admin y supervisor estaban duplicadas y solo la de
+        // supervisor incluía `assigned_to = uno mismo`. Por eso Carolina —admin
+        // con 4 asesores y 153 leads propios— no veía su propia cartera en el
+        // embudo: veía la de su equipo y nada más. Unificadas para que no
+        // vuelvan a divergir.
+        const { data: equipo } = await supabase
             .from('admin_asesores')
             .select('asesor_id')
             .eq('admin_id', user.id)
 
-        if (adminAsesores && adminAsesores.length > 0) {
-            // Incluir también los leads sin asignar (Pendiente de Asignación)
-            const asesorIds = adminAsesores.map(a => a.asesor_id).join(',')
-            query = query.or(`assigned_to.in.(${asesorIds}),assigned_to.is.null`)
-        }
-        // Si no tiene asesores asignados, ve todos (backward compat)
-    } else if (isSupervisorRole(profile?.role)) {
-        // supervisor: su bucket de redistribución + leads de su equipo + sin asignar
-        const { data: supervisorAsesores } = await supabase
-            .from('admin_asesores')
-            .select('asesor_id')
-            .eq('admin_id', user.id)
-
-        const asesorIds = (supervisorAsesores ?? []).map(a => a.asesor_id)
+        const asesorIds = (equipo ?? []).map(a => a.asesor_id)
         if (asesorIds.length > 0) {
             const idList = asesorIds.join(',')
             query = query.or(`assigned_to.in.(${idList}),assigned_to.eq.${user.id},assigned_to.is.null`)
-        } else {
+        } else if (isSupervisorRole(profile?.role)) {
             query = query.or(`assigned_to.eq.${user.id},assigned_to.is.null`)
         }
+        // Un admin sin equipo asignado sigue viendo todo (comportamiento previo).
     } else {
         query = query.eq('assigned_to', user.id)
     }
