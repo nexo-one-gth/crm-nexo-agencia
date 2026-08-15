@@ -4,6 +4,55 @@ CRM interno para asesores de seguros de salud (prepagas). Gestiona leads, embudo
 
 ---
 
+## ESTADO AL 2026-08-15 — leer antes de tocar nada
+
+### El patrón de bug que más apareció
+
+Ocho de los bugs encontrados entre el 8 y el 15 de agosto son **el mismo**: listas de roles escritas a mano en vez de derivar del dato.
+
+```
+if (role === 'admin')                    ← deja afuera a admin_principal
+.in('role', ['admin','admin_principal']) ← deja afuera a supervisor
+.eq('role', 'asesor')                    ← deja afuera a quien vende y no es asesor
+```
+
+**Antes de escribir cualquier condición sobre roles, preguntarse si el criterio real es el rol o un dato.** Casi siempre es un dato:
+
+| Pregunta | De dónde sale — NO del rol |
+|---|---|
+| ¿Quién conduce este equipo? | `admin_asesores` (la relación) |
+| ¿Quién puede recibir leads? | `profiles.aparecer_en_tablero` |
+| ¿Quién cobra override? | `supervisor_overrides` |
+| ¿A quién puedo ver? | `auth_asesores_visibles()` en RLS |
+
+El caso testigo es **Carolina Ferrari**: es `admin`, conduce 4 asesores y además vende con cartera propia. Cualquier condición que pregunte por su rol la deja afuera de algo.
+
+### La otra clase: dos fuentes de verdad
+
+- `altas.condicion` vs `altas.tipo_alta` → resuelto, se eliminó `condicion`
+- `altas.cuota` vs `leads.valor_final_socio` → resuelto, manda el alta
+- Filtros del código vs RLS → resuelto, **manda el RLS**; no volver a filtrar por usuario en las server actions
+
+### Pendientes
+
+**Deploy:** Vercel dejó de tomar los push automáticamente. Si un cambio no aparece en producción, revisar en el dashboard y forzar *Redeploy* — el código puede estar en GitHub sin construir.
+
+**Bloqueante antes de liquidar comisiones** (ver `REVISION_COMISIONES.md`):
+- Los 20 porcentajes de prepaga y los 10 de asesor están todos en `100` y **ninguno es real**. La prepaga paga 260 / 200 / 180 según prepaga y condición.
+- 4 prepagas activas sin reglas comisionales: OMINT, HOMINIS, GALENO, SWISS MEDICAL.
+- 7 asignaciones asesor↔prepaga sin porcentaje: **frenan la aprobación del alta** a propósito.
+- Las 6 altas existentes no tienen `tipo_alta` ni `cuota` cargados.
+
+**De la auditoría RLS** (`AUDITORIA_RLS_2026-08-08.md`): quedan H-1 (webhooks de n8n y Evolution legibles por cualquier asesor), M-2, M-3 y `FORCE RLS`.
+
+**Sin construir:** selector de alcance (mi cartera / mi equipo / toda la agencia), UI para cargar overrides, módulo de facturación y margen, decomisión.
+
+### Un dato que confunde al mirar números
+
+Muchísimos leads están **borrados por soft-delete**: 293 de los 293 sin asignar, y 152 de los 153 de Carolina. El RLS no filtra `deleted_at` pero la aplicación sí. Al comparar conteos de SQL contra la pantalla, siempre agregar `deleted_at IS NULL`.
+
+---
+
 ## SKILLS DISPONIBLES
 
 Estas skills se incorporaron **específicamente por el modelo de visibilidad jerárquica del CRM** (admin general → admin de equipo → asesor). La separación entre roles se resuelve en RLS de Supabase, no en el frontend: un error en una política expone comisiones, liquidaciones y datos de leads de otros equipos. Estas tres skills existen para que ese riesgo se revise sistemáticamente y no a ojo.
