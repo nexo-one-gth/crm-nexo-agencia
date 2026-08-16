@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { getAllLeads } from '@/app/actions/lead-actions'
 import { LeadFunnelBoard } from '@/components/leads/LeadFunnelBoard'
 import Link from 'next/link'
@@ -23,7 +24,7 @@ export default async function FunnelPage({
     // (un supervisor —o una admin con cartera propia— queda afuera de la condición).
     let conduceEquipo = false
     let userProfile = null
-    let advisorToAdmin: AdvisorToAdmin = {}
+    const advisorToAdmin: AdvisorToAdmin = {}
 
     if (user) {
         const { data: profile } = await supabase
@@ -88,9 +89,8 @@ export default async function FunnelPage({
                 </div>
             </div>
 
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <LeadFunnelBoard
-                initialLeads={leads as any}
+                initialLeads={leads as unknown as ComponentProps<typeof LeadFunnelBoard>['initialLeads']}
                 isAdmin={isAdmin}
                 isAdminPrincipal={isAdminPrincipal}
                 conduceEquipo={conduceEquipo}

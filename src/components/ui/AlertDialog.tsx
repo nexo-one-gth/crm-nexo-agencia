@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AlertTriangle, X } from 'lucide-react'
 
 interface AlertDialogProps {
@@ -34,9 +35,17 @@ export const AlertDialog = ({
         }
     }, [isOpen, onClose])
 
-    if (!isOpen) return null
+    // Portal a document.body: abierto desde una tarjeta del tablero, los ancestros
+    // incluyen un contenedor con `animate-in` (aplica transform) y la columna de
+    // etapa con `overflow-y-auto`. Un ancestro con transform pasa a ser el bloque
+    // contenedor de los hijos `fixed`, así que el overlay quedaba recortado dentro
+    // de la columna en vez de cubrir la pantalla (mismo caso que LeadEditModal).
+    // `typeof document` cubre el render del servidor, donde no hay body al que
+    // portalear. No hay riesgo de mismatch de hidratación: isOpen arranca en false
+    // en todos los usos, así que el primer render es null en servidor y cliente.
+    if (!isOpen || typeof document === 'undefined') return null
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
             <div
                 className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
@@ -75,6 +84,7 @@ export const AlertDialog = ({
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     )
 }

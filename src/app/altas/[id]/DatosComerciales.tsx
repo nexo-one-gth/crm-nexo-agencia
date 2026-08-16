@@ -69,7 +69,9 @@ export function DatosComerciales({ altaId, datos }: { altaId: string; datos: Dat
     })
   }
 
-  const field = 'w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none'
+  // text-base (16px) en mobile evita el auto-zoom de iOS Safari al enfocar un
+  // input con font-size < 16px; sm: vuelve a la densidad original en desktop.
+  const field = 'w-full px-3 py-2 text-base sm:text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none'
   const label = 'block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1'
 
   return (

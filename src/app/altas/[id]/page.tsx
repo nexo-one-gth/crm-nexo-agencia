@@ -12,20 +12,13 @@ import { DatosComerciales } from './DatosComerciales'
 import { DatosEspecificos } from './DatosEspecificos'
 import { IntegrantesEditor, type Integrante } from './IntegrantesEditor'
 import { ResumenTramite } from './ResumenTramite'
+import { getEstadoAltaBadge } from '@/lib/altas-estado'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   return { title: `Alta ${id.slice(0, 8)} | Nexo Asesores` }
-}
-
-const ESTADO_BADGE: Record<string, { label: string; color: string }> = {
-  en_proceso:  { label: 'En proceso',  color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-  enviada:     { label: 'Enviada',     color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-  observada:   { label: 'Observada',   color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
-  aprobada:    { label: 'Aprobada',    color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
-  rechazada:   { label: 'Rechazada',   color: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' },
 }
 
 export default async function AltaDetallePage({ params }: { params: Promise<{ id: string }> }) {
@@ -80,7 +73,7 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
 
   const prepaga = alta.prepagas as { nombre: string; slug: string } | null
   const plan = alta.prepaga_planes as { nombre: string } | null
-  const badge = ESTADO_BADGE[alta.estado] ?? ESTADO_BADGE.en_proceso
+  const badge = getEstadoAltaBadge(alta.estado)
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

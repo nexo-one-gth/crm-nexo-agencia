@@ -409,7 +409,11 @@ export async function updateLead(data: Record<string, unknown>) {
         observaciones_cotizacion: z.string().optional(),
         interest_level: z.number().int().optional(),
         source: z.string().optional(),
-        origen: z.enum(['nexo', 'referido', 'campania']).optional(),
+        // `origen` NO se acepta acá a propósito: queda definido por la vía de
+        // ingreso del lead (importación → 'nexo'/'campania', carga manual del
+        // asesor → 'referido', asignación a campaña → 'campania') y define la
+        // escala comisional. Editarlo a mano cambiaría la comisión, así que el
+        // schema lo descarta: zod strippea las claves que no declara.
         notes: z.string().optional(),
         assigned_to_name: z.string().optional(),
         stage_name: z.string().optional(),

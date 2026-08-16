@@ -9,7 +9,6 @@ export const COMPLETION_FIELDS = [
     'dni',
     'cuil',
     'cuit_empleador',
-    'numero_tramite',
     'address_state',
     'address_city',
     'obra_social',

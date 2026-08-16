@@ -2,15 +2,15 @@
 
 import { useState } from 'react'
 import {
-    Phone, Mail, MapPin, User, Calendar, Clock, CheckCircle2,
-    AlertCircle, DollarSign, MessageCircle, FileText, Activity as ActivityIcon,
-    ChevronRight, ArrowLeft, Send, History, UserCheck, Flame, CreditCard, Briefcase, Users, Edit, Calculator,
+    Phone, MapPin, User, Calendar,
+    DollarSign, MessageCircle, FileText, Activity as ActivityIcon,
+    ArrowLeft, History, Flame, Briefcase, Users, Edit, Calculator,
     Sparkles, ArrowRightLeft, BadgeDollarSign
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Link from 'next/link'
-import { calculateLeadCompletion, getCompletionColor } from '@/lib/utils/lead-completion'
+import { calculateLeadCompletion } from '@/lib/utils/lead-completion'
 import { getStageColor } from '@/lib/stage-colors'
 import { LeadEditModal } from '@/components/leads/LeadEditModal'
 import { PanelCotizacion } from '@/components/leads/PanelCotizacion'
@@ -124,8 +124,8 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                         </div>
 
                         {/* Completion Score Circle */}
-                        <div className="relative group">
-                            <svg className="w-24 h-24 transform -rotate-90">
+                        <div className="relative group" role="img" aria-label={`Completitud de datos del lead: ${completion}%`}>
+                            <svg className="w-24 h-24 transform -rotate-90" aria-hidden="true">
                                 <circle
                                     cx="48"
                                     cy="48"
@@ -149,7 +149,7 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
                                 <span className="text-2xl font-black">{completion}</span>
-                                <span className="text-[8px] font-black uppercase opacity-60">Score</span>
+                                <span className="text-[10px] font-black uppercase opacity-60">Score</span>
                             </div>
                         </div>
                     </div>
@@ -215,36 +215,13 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                                 </div>
                             </div>
                         </div>
-
-                        {/* Next Action Box */}
-                        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl border border-blue-500/20 relative overflow-hidden group">
-                            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                <ActivityIcon className="w-16 h-16 text-blue-500" />
-                            </div>
-                            <h3 className="text-xs font-black uppercase tracking-widest text-blue-500 mb-4 flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                                Próxima Acción
-                            </h3>
-                            <div className="flex items-start gap-4">
-                                <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-500">
-                                    <MessageCircle className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <p className="font-black text-xl tracking-tight">Seguimiento por WhatsApp</p>
-                                    <p className="text-sm text-slate-500 mt-1">Hoy antes de las 18hs · Revisar cotización</p>
-                                </div>
-                            </div>
-                            <button className="w-full mt-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-lg shadow-blue-500/20 transition-all active:scale-[0.98]">
-                                Enviar Mensaje ahora
-                            </button>
-                        </div>
                     </div>
 
                     {/* Right Column: Activities & Detailed Info */}
                     <div className="lg:col-span-2 space-y-6">
 
                         {/* Tabs Navigation */}
-                        <div className="flex gap-2 p-1.5 bg-white/50 backdrop-blur-md dark:bg-black/20 rounded-2xl border border-white/20 w-fit">
+                        <div role="tablist" aria-label="Secciones del lead" className="flex gap-2 p-1.5 bg-white/50 backdrop-blur-md dark:bg-black/20 rounded-2xl border border-white/20 w-fit">
                             {[
                                 { id: 'info', label: 'Información Detallada', icon: FileText },
                                 { id: 'history', label: 'Historial / Actividad', icon: History },
@@ -252,6 +229,10 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                             ].map(tab => (
                                 <button
                                     key={tab.id}
+                                    role="tab"
+                                    id={`tab-${tab.id}`}
+                                    aria-selected={activeTab === tab.id}
+                                    aria-controls={`tabpanel-${tab.id}`}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-black transition-all ${activeTab === tab.id
                                         ? 'bg-white dark:bg-slate-800 shadow-md text-blue-600 dark:text-blue-400'
@@ -267,7 +248,7 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                         {/* Tab Content */}
                         <div className="glass-card min-h-[500px] rounded-3xl p-8 shadow-xl border-white/20">
                             {activeTab === 'info' && (
-                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                <div role="tabpanel" id="tabpanel-info" aria-labelledby="tab-info" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                                         <div className="space-y-8">
                                             <div>
@@ -286,7 +267,6 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                                                 </h4>
                                                 <div className="space-y-4">
                                                     <InfoRow label="CUIT Empleador" value={lead.cuit_empleador} />
-                                                    <InfoRow label="Nro Trámite" value={lead.numero_tramite} />
                                                 </div>
                                             </div>
                                         </div>
@@ -309,7 +289,7 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                             )}
 
                             {activeTab === 'history' && (
-                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8">
+                                <div role="tabpanel" id="tabpanel-history" aria-labelledby="tab-history" className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-8">
                                     <div className="flex flex-col gap-6">
                                         {activities.length > 0 ? activities.map((activity, idx) => {
                                             const style = getActivityStyle(activity.type)
@@ -347,7 +327,7 @@ export const LeadDetailView = ({ lead, activities, initialTab }: LeadDetailViewP
                             )}
 
                             {activeTab === 'quote' && (
-                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6">
+                                <div role="tabpanel" id="tabpanel-quote" aria-labelledby="tab-quote" className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6">
                                     {puedeCotar ? (
                                         <PanelCotizacion leadId={lead.id} stageName={lead.stage_name} />
                                     ) : (

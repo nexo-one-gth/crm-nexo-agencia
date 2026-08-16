@@ -36,7 +36,9 @@ const ROLES = [
 ]
 
 const num = (v: string) => (v.trim() === '' ? null : Number(v))
-const field = 'w-full px-2.5 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none'
+// text-base (16px) en mobile evita el auto-zoom de iOS Safari al enfocar un
+// input con font-size < 16px; sm: vuelve a la densidad original en desktop.
+const field = 'w-full px-2.5 py-1.5 text-base sm:text-sm rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-1 focus:ring-blue-500 outline-none'
 const label = 'block text-[11px] font-medium text-slate-400 mb-0.5'
 
 function IntegranteCard({ integrante, altaId }: { integrante: Integrante; altaId: string }) {

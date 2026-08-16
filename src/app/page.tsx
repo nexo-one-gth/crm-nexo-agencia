@@ -221,7 +221,14 @@ export default async function DashboardPage() {
                     </span>
                     <span className="text-slate-500 text-xs sm:text-sm tabular-nums">{count}</span>
                   </div>
-                  <div className="h-2 sm:h-2.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    role="progressbar"
+                    aria-label={`${name}: ${count} lead${count !== 1 ? 's' : ''}`}
+                    aria-valuenow={Math.round(percentage)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    className="h-2 sm:h-2.5 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden"
+                  >
                     <div
                       className={`h-full bg-gradient-to-r ${gradient} transition-all duration-500`}
                       style={{ width: `${Math.max(percentage, 2)}%` }}

@@ -2,13 +2,14 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { z } from 'zod'
 import { updateLead } from '@/app/actions/lead-actions'
 import { getPrepagas, getPlanesPorPrepaga } from '@/app/actions/prepaga-actions'
 import { toast } from 'sonner'
 import { X, User, Phone, Mail, CreditCard, MapPin, Briefcase, DollarSign, FileText, Users, Activity, Tag, CheckCircle2, ChevronDown } from 'lucide-react'
 import { calculateLeadCompletion, getCompletionColor, COMPLETION_FIELDS } from '@/lib/utils/lead-completion'
-import { ORIGEN_OPTIONS } from '@/lib/origen'
+import { origenLabel } from '@/lib/origen'
 
 // ── Zod schema — todos los campos son opcionales salvo id ──────────────────────
 const leadUpdateSchema = z.object({
@@ -23,7 +24,6 @@ const leadUpdateSchema = z.object({
     dni: z.string().optional(),
     cuil: z.string().optional(),
     cuit_empleador: z.string().optional(),
-    numero_tramite: z.string().optional(),
     sueldo_bruto: z.coerce.number().optional(),
     address_state: z.string().optional(),
     address_city: z.string().optional(),
@@ -40,7 +40,8 @@ const leadUpdateSchema = z.object({
     valor_forecast: z.coerce.number().optional(),
     observaciones_cotizacion: z.string().optional(),
     interest_level: z.coerce.number().int().min(0).max(2).optional(),
-    origen: z.enum(['nexo', 'referido', 'campania']).optional(),
+    // `origen` no viaja en el form: lo define la vía de ingreso del lead, no el
+    // usuario (ver leadUpdateSchema en lead-actions.ts). Se muestra de sólo lectura.
     notes: z.string().optional(),
     documentacion_pendiente: z.string().optional(),
 })
@@ -195,7 +196,6 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
         dni: lead.dni as string | undefined,
         cuil: lead.cuil as string | undefined,
         cuit_empleador: lead.cuit_empleador as string | undefined,
-        numero_tramite: lead.numero_tramite as string | undefined,
         sueldo_bruto: lead.sueldo_bruto as number | undefined,
         address_state: lead.address_state as string | undefined,
         address_city: lead.address_city as string | undefined,
@@ -212,7 +212,6 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
         valor_forecast: lead.valor_forecast as number | undefined,
         observaciones_cotizacion: lead.observaciones_cotizacion as string | undefined,
         interest_level: lead.interest_level as number | undefined,
-        origen: lead.origen as 'nexo' | 'referido' | 'campania' | undefined,
         notes: lead.notes as string | undefined,
         documentacion_pendiente: lead.documentacion_pendiente as string | undefined,
     })
@@ -230,7 +229,16 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData.prepaga_id])
 
-    if (!isOpen) return null
+    // El modal se monta por portal en document.body. Desde LeadCard, sus ancestros
+    // en el tablero incluyen un contenedor con `animate-in` (aplica transform) y la
+    // columna de etapa con `overflow-y-auto`: un ancestro con transform pasa a ser
+    // el bloque contenedor de los hijos `fixed`, así que el overlay quedaba atrapado
+    // y recortado dentro de la columna en vez de cubrir la pantalla. Desde
+    // LeadDetailView no pasaba porque ahí cuelga del nivel de página.
+    // `typeof document` cubre el render del servidor, donde no hay body al que
+    // portalear. No hay riesgo de mismatch de hidratación: isOpen arranca en false,
+    // así que el primer render es null tanto en servidor como en cliente.
+    if (!isOpen || typeof document === 'undefined') return null
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target
@@ -281,7 +289,7 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
         }
     }
 
-    return (
+    return createPortal(
         <div
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
             onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
@@ -329,8 +337,18 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
                             <Field label="DNI" name="dni" value={formData.dni} onChange={handleChange} icon={<CreditCard className="w-3.5 h-3.5" />} isMissing={!formData.dni} />
                             <Field label="CUIL Titular" name="cuil" value={formData.cuil} onChange={handleChange} icon={<CreditCard className="w-3.5 h-3.5" />} isMissing={!formData.cuil} />
                             <Field label="CUIT Empleador" name="cuit_empleador" value={formData.cuit_empleador} onChange={handleChange} icon={<Briefcase className="w-3.5 h-3.5" />} isMissing={!formData.cuit_empleador} />
-                            <Field label="Nro. Trámite" name="numero_tramite" value={formData.numero_tramite} onChange={handleChange} icon={<FileText className="w-3.5 h-3.5" />} isMissing={!formData.numero_tramite} />
-                            <Field label="Sueldo Bruto (si es PMO)" name="sueldo_bruto" value={formData.sueldo_bruto} onChange={handleChange} type="number" icon={<DollarSign className="w-3.5 h-3.5" />} isMissing={!formData.sueldo_bruto} />
+                            <Field label="Sueldo Bruto" name="sueldo_bruto" value={formData.sueldo_bruto} onChange={handleChange} type="number" icon={<DollarSign className="w-3.5 h-3.5" />} isMissing={!formData.sueldo_bruto} />
+                        </div>
+                    </AccordionSection>
+
+                    {/* ── Sección: Ubicación & Cobertura ── */}
+                    <AccordionSection title="Información Adicional (Ubicación y Cobertura)" icon={<MapPin className="w-4 h-4 text-purple-500" />}>
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="Provincia" name="address_state" value={formData.address_state} onChange={handleChange} icon={<MapPin className="w-3.5 h-3.5" />} isMissing={!formData.address_state} />
+                            <Field label="Ciudad" name="address_city" value={formData.address_city} onChange={handleChange} icon={<MapPin className="w-3.5 h-3.5" />} isMissing={!formData.address_city} />
+                            <Field label="Obra Social Actual" name="obra_social" value={formData.obra_social} onChange={handleChange} icon={<Activity className="w-3.5 h-3.5" />} isMissing={!formData.obra_social} />
+                            <Field label="Cantidad de integrantes" name="cantidad_integrantes" value={formData.cantidad_integrantes} onChange={handleChange} type="number" icon={<Users className="w-3.5 h-3.5" />} isMissing={!formData.cantidad_integrantes} />
+                            <Field label="Edades (ej: 35, 30, 5)" name="edades" value={formData.edades} onChange={handleChange} colSpan={2} isMissing={!formData.edades} />
                         </div>
                     </AccordionSection>
 
@@ -352,14 +370,18 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
                                     <option value={2}>🔥🔥 Alto</option>
                                 </select>
                             </div>
-                            <SelectField
-                                label="Origen del dato"
-                                name="origen"
-                                value={formData.origen}
-                                onChange={handleSelectChange}
-                                options={ORIGEN_OPTIONS}
-                                placeholder="Sin definir"
-                            />
+                            {/* Sólo lectura: lo define la vía de ingreso del lead, no el usuario */}
+                            <div>
+                                <div className="flex justify-between items-center mb-1.5 px-1">
+                                    <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Origen del dato</label>
+                                </div>
+                                <div
+                                    title="Se asigna automáticamente según cómo ingresó el lead al CRM"
+                                    className="w-full rounded-xl bg-black/5 dark:bg-slate-800/30 border border-white/60 dark:border-white/10 text-slate-600 dark:text-slate-300 text-sm px-3 py-2.5 shadow-sm"
+                                >
+                                    {origenLabel(lead.origen as string | null | undefined)}
+                                </div>
+                            </div>
                             <Field
                                 label="Documentación Pendiente"
                                 name="documentacion_pendiente"
@@ -376,17 +398,6 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
                                 textarea
                                 colSpan={2}
                             />
-                        </div>
-                    </AccordionSection>
-
-                    {/* ── Sección: Ubicación & Cobertura ── */}
-                    <AccordionSection title="Información Adicional (Ubicación y Cobertura)" icon={<MapPin className="w-4 h-4 text-purple-500" />}>
-                        <div className="grid grid-cols-2 gap-3">
-                            <Field label="Provincia" name="address_state" value={formData.address_state} onChange={handleChange} icon={<MapPin className="w-3.5 h-3.5" />} isMissing={!formData.address_state} />
-                            <Field label="Ciudad" name="address_city" value={formData.address_city} onChange={handleChange} icon={<MapPin className="w-3.5 h-3.5" />} isMissing={!formData.address_city} />
-                            <Field label="Obra Social Actual" name="obra_social" value={formData.obra_social} onChange={handleChange} icon={<Activity className="w-3.5 h-3.5" />} isMissing={!formData.obra_social} />
-                            <Field label="Cantidad de integrantes" name="cantidad_integrantes" value={formData.cantidad_integrantes} onChange={handleChange} type="number" icon={<Users className="w-3.5 h-3.5" />} isMissing={!formData.cantidad_integrantes} />
-                            <Field label="Edades (ej: 35, 30, 5)" name="edades" value={formData.edades} onChange={handleChange} colSpan={2} isMissing={!formData.edades} />
                         </div>
                     </AccordionSection>
 
@@ -446,6 +457,7 @@ export const LeadEditModal = ({ isOpen, onClose, lead }: LeadEditModalProps) => 
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     )
 }

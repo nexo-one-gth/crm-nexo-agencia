@@ -47,7 +47,14 @@ export function ChecklistProgress({
         </div>
       )}
 
-      <div className={cn('w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden', size === 'sm' ? 'h-1.5' : 'h-2')}>
+      <div
+        role="progressbar"
+        aria-label={completo ? 'Checklist completo' : `${completados} de ${totalRequeridos} ítems requeridos completados`}
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className={cn('w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden', size === 'sm' ? 'h-1.5' : 'h-2')}
+      >
         <div
           className={cn('h-full rounded-full transition-all duration-500', colorBar)}
           style={{ width: `${pct}%` }}

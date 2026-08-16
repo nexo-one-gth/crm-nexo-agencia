@@ -43,10 +43,15 @@ export async function getMiEquipoReparto(): Promise<{ data?: MiEquipoData; error
     .from('profiles').select('role').eq('id', callerId).single()
   const esAdminPrincipal = perfil?.role === 'admin_principal'
 
-  // Ids de los asesores del equipo
+  // Ids de los asesores del equipo. Para admin_principal esto es "todo el
+  // universo repartible" de la agencia: se define por `aparecer_en_tablero`
+  // (el flag que marca "esta persona vende"), no por `role`. Si filtráramos
+  // por role='asesor' quedaría afuera cualquier admin que además venda (el
+  // mismo caso de Carolina, pero ahora para el resto del equipo en vez de
+  // solo para el propio caller — ver el fix de más abajo).
   let asesorIds: string[]
   if (esAdminPrincipal) {
-    const { data } = await supabase.from('profiles').select('id').eq('role', 'asesor')
+    const { data } = await supabase.from('profiles').select('id').eq('aparecer_en_tablero', true)
     asesorIds = (data ?? []).map(a => a.id)
   } else {
     const { data } = await supabase

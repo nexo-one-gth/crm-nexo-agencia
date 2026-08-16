@@ -179,6 +179,18 @@ export async function importLeadsAction(formData: FormData) {
                 city = temp;
             }
 
+            // 3. NUMERO_TRAMITE con formato de email: es el mail del contacto, no un
+            //    trámite. Pasó en todas las importaciones desde 2026-03-11: 296 leads
+            //    quedaron con el mail acá y con email NULL (se rescataron en la
+            //    migración 20260815_rescatar_emails_de_numero_tramite). El trámite es
+            //    un ID del CRM anterior y nunca lleva '@', así que redirigimos el valor
+            //    a MAIL —solo si no hay mail, para no pisar uno bueno— y lo vaciamos.
+            const tramite = String(row.NUMERO_TRAMITE || '').trim();
+            if (isEmailFormat(tramite)) {
+                if (!isEmailFormat(email)) email = tramite;
+                row.NUMERO_TRAMITE = '';
+            }
+
             // Update row with corrected values for Zod validation
             row.CELULAR = phone.replace(/^'/, '').trim();
             row.MAIL = email.replace(/^'/, '').trim();

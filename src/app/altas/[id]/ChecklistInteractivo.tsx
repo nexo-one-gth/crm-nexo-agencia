@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Check, Square, Upload, Calendar, Hash, Type, FileText } from 'lucide-react'
+import { Check, Upload, Calendar, Hash, Type, FileText } from 'lucide-react'
 import { completarItem, subirAdjuntoDrive } from '@/app/actions/prepaga-actions'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -93,15 +93,18 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
       <button
         onClick={item.tipo_dato === 'check' ? toggleCheck : undefined}
         disabled={isPending || item.tipo_dato !== 'check'}
+        role="checkbox"
+        aria-checked={item.completado}
+        aria-label={item.etiqueta}
         className={cn(
-          'mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all',
+          'mt-0.5 w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 transition-all',
           item.completado
             ? 'bg-emerald-500 border-emerald-500 text-white'
             : 'border-slate-300 dark:border-slate-600',
           item.tipo_dato === 'check' && !isPending && 'cursor-pointer hover:border-emerald-400',
         )}
       >
-        {item.completado && <Check className="w-3 h-3" />}
+        {item.completado && <Check className="w-3.5 h-3.5" />}
       </button>
 
       <div className="flex-1 min-w-0">
@@ -178,7 +181,8 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
                   onChange={e => setValor(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && guardarValor()}
                   autoFocus
-                  className="text-xs px-2 py-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500 w-48"
+                  aria-label={item.etiqueta}
+                  className="text-base sm:text-sm px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-blue-500 w-48"
                 />
                 <button
                   onClick={guardarValor}

@@ -77,7 +77,7 @@ export function CambiarEstadoAlta({ altaId, estadoActual, observaciones, isAdmin
             onChange={e => setObs(e.target.value)}
             rows={2}
             placeholder="Notas sobre el estado..."
-            className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            className="w-full px-3 py-2 text-base sm:text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
         </div>
       )}

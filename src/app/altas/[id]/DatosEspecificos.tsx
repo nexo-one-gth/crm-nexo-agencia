@@ -24,7 +24,7 @@ interface DatosEspecificosProps {
   items: ItemDato[]
 }
 
-function CampoDato({ item, altaId }: { item: ItemDato; altaId: string }) {
+function CampoDato({ item }: { item: ItemDato }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [valor, setValor] = useState<string>(
@@ -49,14 +49,17 @@ function CampoDato({ item, altaId }: { item: ItemDato; altaId: string }) {
     item.tipo_dato === 'fecha' ? 'date' :
     item.tipo_dato === 'numero' ? 'number' : 'text'
 
+  const inputId = `dato-${item.id}`
+
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+      <label htmlFor={inputId} className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
         {item.etiqueta}
         {item.requerido && <span className="text-rose-500 font-bold">*</span>}
       </label>
       <div className="flex items-center gap-2">
         <input
+          id={inputId}
           type={inputType}
           value={valor}
           onChange={e => setValor(e.target.value)}
@@ -64,7 +67,9 @@ function CampoDato({ item, altaId }: { item: ItemDato; altaId: string }) {
           onKeyDown={e => e.key === 'Enter' && guardar()}
           disabled={isPending}
           className={cn(
-            'flex-1 text-sm px-3 py-2 rounded-xl border transition-colors',
+            // text-base (16px) en mobile evita el auto-zoom de iOS Safari al
+            // enfocar el input; sm: vuelve a la densidad original en desktop.
+            'flex-1 text-base sm:text-sm px-3 py-2 rounded-xl border transition-colors',
             'bg-white dark:bg-slate-800 text-slate-900 dark:text-white',
             'border-slate-200 dark:border-white/10',
             'focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400',
@@ -83,7 +88,7 @@ function CampoDato({ item, altaId }: { item: ItemDato; altaId: string }) {
   )
 }
 
-export function DatosEspecificos({ altaId, prepagaNombre, items }: DatosEspecificosProps) {
+export function DatosEspecificos({ prepagaNombre, items }: DatosEspecificosProps) {
   if (items.length === 0) return null
 
   const requeridos = items.filter(i => i.requerido)
@@ -104,10 +109,10 @@ export function DatosEspecificos({ altaId, prepagaNombre, items }: DatosEspecifi
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {requeridos.map(item => (
-          <CampoDato key={item.id} item={item} altaId={altaId} />
+          <CampoDato key={item.id} item={item} />
         ))}
         {opcionales.map(item => (
-          <CampoDato key={item.id} item={item} altaId={altaId} />
+          <CampoDato key={item.id} item={item} />
         ))}
       </div>
     </section>

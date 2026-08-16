@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { SimpleModal } from '@/components/ui/SimpleModal'
-import { Users, Loader2, UserCheck } from 'lucide-react'
+import { Loader2, UserCheck } from 'lucide-react'
 import { getAsesoresParaAsignar } from '@/app/actions/advisor-actions'
 import { assignLeadsToAdvisor } from '@/app/actions/lead-actions'
 import { toast } from 'sonner'
@@ -72,6 +72,7 @@ export const MassAssignDialog = ({ isOpen, onClose, leadIds, onSuccess }: MassAs
                                 <button
                                     key={advisor.id}
                                     onClick={() => setSelectedAdvisor(advisor.id)}
+                                    aria-pressed={selectedAdvisor === advisor.id}
                                     className={`flex items-center gap-4 p-4 rounded-2xl transition-all border ${selectedAdvisor === advisor.id
                                         ? 'bg-blue-600/20 border-blue-500/50 shadow-lg'
                                         : 'bg-white/5 border-white/10 hover:bg-white/10'

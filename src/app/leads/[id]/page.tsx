@@ -6,8 +6,8 @@ export default async function LeadPage({
     params,
     searchParams,
 }: {
-    params: { id: string }
-    searchParams: { tab?: string }
+    params: Promise<{ id: string }>
+    searchParams: Promise<{ tab?: string }>
 }) {
     const { id } = await params
     const sp = await searchParams

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Users, UserCheck, Shuffle, Inbox, CheckSquare, Square, Phone } from 'lucide-react'
+import { Loader2, Users, UserCheck, Shuffle, Inbox, CheckSquare, Square, Phone, AlertTriangle } from 'lucide-react'
 import { assignLeadsToAdvisor } from '@/app/actions/lead-actions'
 import {
   getMiEquipoReparto,
@@ -20,7 +20,7 @@ export function MiEquipoClient({ data: dataInicial }: Props) {
   const [asesorDestino, setAsesorDestino] = useState<string>('')
   const [procesando, setProcesando] = useState(false)
 
-  const { asesores, pendientes } = data
+  const { asesores, pendientes, esAdminPrincipal } = data
   const seleccion = [...sel]
   const todosSel = pendientes.length > 0 && sel.size === pendientes.length
   const mias = pendientes.filter(p => p.origen === 'mia').length
@@ -73,10 +73,21 @@ export function MiEquipoClient({ data: dataInicial }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Admin_principal reparte sobre TODA la agencia, no un equipo chico —
+          sin este aviso no había forma de distinguir el alcance a simple
+          vista y el reparto equitativo podía tocar gente de otros equipos
+          por error. */}
+      {esAdminPrincipal && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          Estás viendo y repartiendo leads de toda la agencia, no de un equipo puntual.
+        </div>
+      )}
+
       {/* ---------- Equipo ---------- */}
       <div className="rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-4 space-y-3">
         <p className="text-xs font-black uppercase tracking-widest text-indigo-600 flex items-center gap-1.5">
-          <Users className="w-3.5 h-3.5" /> Tu equipo ({asesores.length})
+          <Users className="w-3.5 h-3.5" /> {esAdminPrincipal ? 'Toda la agencia' : 'Tu equipo'} ({asesores.length})
         </p>
         {asesores.length === 0 ? (
           <p className="text-sm text-slate-500">No tenés asesores asignados a tu equipo todavía.</p>
