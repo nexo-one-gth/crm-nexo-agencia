@@ -459,6 +459,115 @@ export async function getAltas() {
   return data
 }
 
+// ---------------------------------------------------------------------------
+// TABLERO DE ALTAS — vista agrupada por líder y asesor
+// ---------------------------------------------------------------------------
+
+export type AltaTableroRow = {
+  id: string
+  estado: string
+  created_at: string
+  enviada_at: string | null
+  cuota: number | null
+  asesor_id: string
+  asesor_nombre: string
+  lider_id: string | null
+  lider_nombre: string | null
+  lead_nombre: string
+  prepaga_nombre: string
+  plan_nombre: string | null
+  requeridos: number
+  completados: number
+}
+
+export type AltasTablero = {
+  rows: AltaTableroRow[]
+  userId: string
+  // Los asesores a cargo salen de la RELACIÓN (admin_asesores), no del rol.
+  // Es lo que permite que Carolina —admin, líder y vendedora a la vez— tenga
+  // las tres vistas disponibles sin ninguna rama especial por rol.
+  misAsesoresIds: string[]
+}
+
+const nombreCompleto = (p?: { first_name?: string | null; last_name?: string | null } | null) =>
+  [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim()
+
+// Compone lo que necesita el tablero en una sola pasada: las altas que el RLS
+// deja ver, más el líder de cada vendedor para poder agrupar.
+//
+// `admin_asesores` tiene el mismo alcance de RLS que `altas` (admin ve todo,
+// el líder ve su equipo, el asesor ve su fila), así que el agrupamiento nunca
+// puede revelar una relación que el usuario no tenga derecho a ver: en el peor
+// caso un alta queda sin líder conocido y cae en "Sin equipo asignado".
+export async function getAltasTablero(): Promise<AltasTablero> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { rows: [], userId: '', misAsesoresIds: [] }
+
+  const [altas, { data: relaciones }] = await Promise.all([
+    getAltas(),
+    supabase
+      .from('admin_asesores')
+      .select('admin_id, asesor_id, profiles!admin_asesores_admin_id_fkey(first_name, last_name)'),
+  ])
+
+  type Relacion = {
+    admin_id: string
+    asesor_id: string
+    profiles: { first_name: string | null; last_name: string | null } | null
+  }
+
+  const lider = new Map<string, { id: string; nombre: string }>()
+  for (const r of (relaciones ?? []) as unknown as Relacion[]) {
+    lider.set(r.asesor_id, {
+      id: r.admin_id,
+      nombre: nombreCompleto(r.profiles) || 'Líder sin nombre',
+    })
+  }
+
+  const misAsesoresIds = ((relaciones ?? []) as unknown as Relacion[])
+    .filter(r => r.admin_id === user.id)
+    .map(r => r.asesor_id)
+
+  type AltaCruda = {
+    id: string
+    estado: string
+    created_at: string
+    enviada_at: string | null
+    cuota: number | null
+    asesor_id: string
+    leads: { first_name: string | null; last_name: string | null } | null
+    prepagas: { nombre: string } | null
+    prepaga_planes: { nombre: string } | null
+    profiles: { first_name: string | null; last_name: string | null } | null
+    alta_items: { requerido: boolean; completado: boolean }[] | null
+  }
+
+  const rows: AltaTableroRow[] = (altas as unknown as AltaCruda[]).map(a => {
+    const items = a.alta_items ?? []
+    const jefe = lider.get(a.asesor_id) ?? null
+
+    return {
+      id: a.id,
+      estado: a.estado,
+      created_at: a.created_at,
+      enviada_at: a.enviada_at,
+      cuota: a.cuota === null ? null : Number(a.cuota),
+      asesor_id: a.asesor_id,
+      asesor_nombre: nombreCompleto(a.profiles) || 'Sin asesor',
+      lider_id: jefe?.id ?? null,
+      lider_nombre: jefe?.nombre ?? null,
+      lead_nombre: nombreCompleto(a.leads) || 'Sin nombre',
+      prepaga_nombre: a.prepagas?.nombre ?? '—',
+      plan_nombre: a.prepaga_planes?.nombre ?? null,
+      requeridos: items.filter(i => i.requerido).length,
+      completados: items.filter(i => i.requerido && i.completado).length,
+    }
+  })
+
+  return { rows, userId: user.id, misAsesoresIds }
+}
+
 export async function getAltaById(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase

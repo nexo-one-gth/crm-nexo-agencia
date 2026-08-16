@@ -9,7 +9,7 @@
 | B | Helpers + 23 políticas RLS reescritas | ✅ aplicada y testeada por rol |
 | C | Generador de overrides al aprobar un alta | ✅ implementado |
 | — | Código: dejar que el RLS defina el alcance | ✅ |
-| D | Selector de alcance, pantallas de líder, carga de overrides | ⏳ pendiente |
+| D | Selector de alcance, pantallas de líder, carga de overrides | 🔸 parcial — selector y vista de líder hechos en `/altas` (2026-08-16); faltan embudo, dashboard, liquidaciones y la carga de overrides |
 
 Prueba de aceptación corrida sobre datos reales (base 1000, la agencia gana 100):
 

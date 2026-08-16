@@ -45,7 +45,9 @@ El caso testigo es **Carolina Ferrari**: es `admin`, conduce 4 asesores y ademá
 
 **De la auditoría RLS** (`AUDITORIA_RLS_2026-08-08.md`): quedan H-1 (webhooks de n8n y Evolution legibles por cualquier asesor), M-2, M-3 y `FORCE RLS`.
 
-**Sin construir:** selector de alcance (mi cartera / mi equipo / toda la agencia), UI para cargar overrides, módulo de facturación y margen, decomisión.
+**Sin construir:** UI para cargar overrides, módulo de facturación y margen, decomisión.
+
+**Selector de alcance:** construido en `/altas` (2026-08-16) — mi cartera / mi equipo / toda la agencia, con agrupación líder → asesor y filtro por estado del ciclo. Falta replicarlo en el embudo, el dashboard y las liquidaciones. Los alcances se derivan del dato (tener gente a cargo, tener altas propias, que el RLS deje ver algo ajeno), nunca del rol: ver el comentario en `src/app/altas/AltasTablero.tsx`.
 
 ### Un dato que confunde al mirar números
 
@@ -178,7 +180,7 @@ src/
 | `/prepagas` | Catálogo de prepagas | Todos |
 | `/prepagas/[slug]` | Detalle: planes, documentación | Todos |
 | `/prepagas/[slug]/cotizar` | Cotizador (iframe + credenciales server-side) | Todos |
-| `/altas` | Listado de altas/afiliaciones | Todos |
+| `/altas` | Tablero de trámites: ciclo completo, selector de alcance y agrupación líder → asesor | Todos (el alcance lo define el RLS) |
 | `/altas/[id]` | Checklist + adjuntos + estado | Todos |
 | `/comisiones` | Comisiones propias del usuario | Todos |
 | `/recursos` | Navegador Google Drive | Todos |
