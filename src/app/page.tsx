@@ -60,10 +60,16 @@ export default async function DashboardPage() {
       .select('*', { count: 'exact', head: true })
       .eq('asesor_id', user.id)
       .in('estado', ['en_proceso', 'enviada', 'observada']),
+    // beneficiario_id, NO asesor_id: este tile es "lo que YO cobro", igual que
+    // /comisiones, que es adonde linkea. `asesor_id` conserva su significado
+    // historico —QUIEN VENDIO— tambien en las filas de override, donde el
+    // beneficiario es el lider. Filtrando por asesor_id, un lider nunca veia
+    // aca sus overrides y el numero del tile contradecia a la pantalla que
+    // abria al tocarlo.
     supabase
       .from('comisiones')
       .select('monto_comision')
-      .eq('asesor_id', user.id)
+      .eq('beneficiario_id', user.id)
       .eq('estado', 'pendiente'),
   ])
 
@@ -160,7 +166,10 @@ export default async function DashboardPage() {
             <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <p className="text-[10px] sm:text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Altas en proceso</p>
+            {/* "Mis": el conteo filtra por asesor_id = uno mismo, mientras que
+                /altas abre en el alcance mas amplio que el RLS permita. Sin el
+                posesivo, un lider leia 0 aca y encontraba 6 al entrar. */}
+            <p className="text-[10px] sm:text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Mis altas en proceso</p>
             <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">{altasActivas ?? 0}</p>
           </div>
         </div>

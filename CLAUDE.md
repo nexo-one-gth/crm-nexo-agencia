@@ -45,7 +45,9 @@ El caso testigo es **Carolina Ferrari**: es `admin`, conduce 4 asesores y ademá
 
 **De la auditoría RLS** (`AUDITORIA_RLS_2026-08-08.md`): quedan H-1 (webhooks de n8n y Evolution legibles por cualquier asesor), M-2, M-3 y `FORCE RLS`.
 
-**Sin construir:** UI para cargar overrides, módulo de facturación y margen, decomisión.
+**Sin construir:** decomisión, comisión en cuotas, condicionamiento al pago del socio, ámbito geográfico y ventanas de lote reales (ver `REVISION_COMISIONES.md` §5).
+
+**Construido el 2026-08-16:** `/admin/comisiones/bloqueos` (qué frena hoy una liquidación), `/admin/comisiones/overrides` (carga de `supervisor_overrides`, escritura solo admin_principal) y `/admin/comisiones/margen` (facturación − pagos, sin schema nuevo).
 
 **Selector de alcance:** construido en `/altas` (2026-08-16) — mi cartera / mi equipo / toda la agencia, con agrupación líder → asesor y filtro por estado del ciclo. Falta replicarlo en el embudo, el dashboard y las liquidaciones. Los alcances se derivan del dato (tener gente a cargo, tener altas propias, que el RLS deje ver algo ajeno), nunca del rol: ver el comentario en `src/app/altas/AltasTablero.tsx`.
 
@@ -188,6 +190,9 @@ src/
 | `/admin` | Gestión de asesores y equipos | admin / admin_principal |
 | `/admin/comisiones` | Lotes de cierre y liquidación | admin / admin_principal |
 | `/admin/comisiones/reglas` | Reglas comisionales por prepaga | admin / admin_principal |
+| `/admin/comisiones/bloqueos` | Qué impide hoy generar o calcular bien una comisión | admin / admin_principal |
+| `/admin/comisiones/overrides` | Overrides de líder por prepaga | admin lee · **solo admin_principal escribe** |
+| `/admin/comisiones/margen` | Facturación, pagos y margen por venta | admin / admin_principal |
 | `/admin/reportes` | Leads asignados por asesor y fecha | admin / admin_principal |
 | `/admin/prepagas/tarifas` | Tarifario Premedic (import PDF) | admin / admin_principal |
 | `/admin/prepagas` | CRUD prepagas, planes, asesores, checklists | admin / admin_principal |

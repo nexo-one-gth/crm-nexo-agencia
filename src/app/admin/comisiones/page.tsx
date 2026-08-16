@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getCierresAdmin, getComisionesAdmin } from '@/app/actions/prepaga-actions'
-import { BadgeDollarSign, Layers, SlidersHorizontal } from 'lucide-react'
+import { BadgeDollarSign, Layers, SlidersHorizontal, ShieldAlert, Scale, Users } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { origenLabel } from '@/lib/origen'
@@ -60,11 +60,28 @@ export default async function AdminComisionesPage() {
             Cada venta aprobada entra al lote abierto de su prepaga. La liquidación se hace por lote (cierre comisional).
           </p>
         </div>
-        <Link href="/admin/comisiones/reglas"
-          className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:border-blue-400 hover:text-blue-600 transition-colors shrink-0">
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          Reglas de comisión
-        </Link>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <Link href="/admin/comisiones/bloqueos"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:border-rose-400 hover:text-rose-600 transition-colors">
+            <ShieldAlert className="w-3.5 h-3.5" />
+            Bloqueos
+          </Link>
+          <Link href="/admin/comisiones/margen"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:border-emerald-400 hover:text-emerald-600 transition-colors">
+            <Scale className="w-3.5 h-3.5" />
+            Facturación y margen
+          </Link>
+          <Link href="/admin/comisiones/overrides"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:border-purple-400 hover:text-purple-600 transition-colors">
+            <Users className="w-3.5 h-3.5" />
+            Overrides
+          </Link>
+          <Link href="/admin/comisiones/reglas"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:border-blue-400 hover:text-blue-600 transition-colors">
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            Reglas
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">

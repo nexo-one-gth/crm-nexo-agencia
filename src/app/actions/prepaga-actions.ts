@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { assertAdmin, isAdminRole } from '@/lib/supabase/assert-admin'
+import { assertAdmin, assertAdminPrincipal, isAdminRole } from '@/lib/supabase/assert-admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import {
   listarContenidoCarpeta,
@@ -1167,6 +1167,370 @@ export async function marcarComisionLiquidada(id: string) {
   revalidatePath('/admin/comisiones')
   revalidatePath('/comisiones')
   return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// FACTURACIÓN Y MARGEN (admin)
+//
+// No requiere schema nuevo: todo sale de las filas de `comisiones`.
+//
+//   facturación = monto_base × porcentaje / 100   ← de la fila `directa`
+//   pagos       = suma de monto_comision de TODAS las filas de esa alta
+//   margen      = facturación − pagos
+//
+// La facturación se lee solo de la fila `directa` porque es la única que lleva
+// el porcentaje de la prepaga; las de override llevan el del líder. Sumarlas
+// todas contaría la facturación una vez por beneficiario.
+// ---------------------------------------------------------------------------
+
+export type VentaMargen = {
+  altaId: string
+  fecha: string
+  lead: string
+  prepaga: string
+  vendedor: string
+  lider: string | null
+  mes: string
+  facturacion: number
+  pagoDirecto: number
+  pagoOverride: number
+  margen: number
+  sinFilaDirecta: boolean
+}
+
+export async function getFacturacionYMargen(): Promise<VentaMargen[]> {
+  const guard = await assertAdmin()
+  if (guard.error) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('comisiones')
+    .select(`
+      alta_id, tipo, monto_base, porcentaje, monto_comision, created_at, supervisor_id,
+      leads(first_name, last_name),
+      prepagas(nombre),
+      profiles!comisiones_asesor_id_fkey(first_name, last_name)
+    `)
+    .order('created_at', { ascending: false })
+
+  if (error) { console.error('getFacturacionYMargen:', error); return [] }
+
+  type Fila = {
+    alta_id: string
+    tipo: string
+    monto_base: number
+    porcentaje: number
+    monto_comision: number
+    created_at: string
+    supervisor_id: string | null
+    leads: { first_name: string | null; last_name: string | null } | null
+    prepagas: { nombre: string } | null
+    profiles: { first_name: string | null; last_name: string | null } | null
+  }
+
+  const nombre = (p?: { first_name?: string | null; last_name?: string | null } | null) =>
+    [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim()
+
+  // Los líderes se resuelven aparte: la fila de comisión guarda `supervisor_id`
+  // como snapshot, pero no el nombre.
+  const db = createAdminClient()
+  const { data: perfiles } = await db.from('profiles').select('id, first_name, last_name')
+  const nombrePorId = new Map((perfiles ?? []).map(p => [p.id, nombre(p) || 'Sin nombre']))
+
+  const porAlta = new Map<string, Fila[]>()
+  for (const f of (data ?? []) as unknown as Fila[]) {
+    porAlta.set(f.alta_id, [...(porAlta.get(f.alta_id) ?? []), f])
+  }
+
+  return [...porAlta.entries()].map(([altaId, filas]) => {
+    const directa = filas.find(f => f.tipo === 'directa')
+    const overrides = filas.filter(f => f.tipo !== 'directa')
+    const ref = directa ?? filas[0]
+
+    const facturacion = directa ? Number(directa.monto_base) * Number(directa.porcentaje) / 100 : 0
+    const pagoDirecto = directa ? Number(directa.monto_comision) : 0
+    const pagoOverride = overrides.reduce((s, f) => s + Number(f.monto_comision), 0)
+
+    return {
+      altaId,
+      fecha: ref.created_at,
+      lead: nombre(ref.leads) || 'Sin nombre',
+      prepaga: ref.prepagas?.nombre ?? '—',
+      vendedor: nombre(ref.profiles) || 'Sin asesor',
+      lider: ref.supervisor_id ? (nombrePorId.get(ref.supervisor_id) ?? null) : null,
+      mes: ref.created_at.slice(0, 7),
+      facturacion,
+      pagoDirecto,
+      pagoOverride,
+      margen: facturacion - pagoDirecto - pagoOverride,
+      // Sin fila `directa` no hay porcentaje de prepaga y la facturación no se
+      // puede calcular. Se marca en vez de mostrar 0, que se leería como
+      // "vendimos y no facturamos" en lugar de "falta el dato".
+      sinFilaDirecta: !directa,
+    }
+  }).sort((a, b) => b.fecha.localeCompare(a.fecha))
+}
+
+// ---------------------------------------------------------------------------
+// OVERRIDES DE LÍDER (admin lee, admin_principal escribe)
+//
+// El override se define por líder + prepaga. Es un grano distinto al de
+// `prepaga_comision_reglas` (prepaga + segmento + origen), por eso vive en
+// tabla propia. Quién es líder sale de `admin_asesores` —la RELACIÓN— y no de
+// `profiles.role`: hay admins que conducen equipo, y preguntar por el rol los
+// dejaría sin cobrar sin que nada falle visiblemente.
+// ---------------------------------------------------------------------------
+
+export type OverrideFila = {
+  id: string
+  supervisor_id: string
+  prepaga_id: string
+  pct_equipo: number | null
+  pct_venta_propia: number | null
+  vigente_desde: string
+  activo: boolean
+}
+
+export type OverridesData = {
+  overrides: OverrideFila[]
+  lideres: { id: string; nombre: string; asesores: number }[]
+  prepagas: { id: string; nombre: string }[]
+  puedeEditar: boolean
+}
+
+export async function getOverridesData(): Promise<OverridesData> {
+  const vacio: OverridesData = { overrides: [], lideres: [], prepagas: [], puedeEditar: false }
+  const guard = await assertAdmin()
+  if (guard.error) return vacio
+
+  const supabase = await createClient()
+  const db = createAdminClient()
+
+  const [{ data: perfil }, { data: overrides }, { data: relaciones }, { data: prepagas }] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', guard.user!.id).single(),
+    supabase.from('supervisor_overrides').select('*').order('vigente_desde', { ascending: false }),
+    db.from('admin_asesores').select('admin_id, profiles!admin_asesores_admin_id_fkey(first_name, last_name)'),
+    db.from('prepagas').select('id, nombre').eq('activa', true).order('nombre'),
+  ])
+
+  type Rel = { admin_id: string; profiles: { first_name: string | null; last_name: string | null } | null }
+  const conteo = new Map<string, { nombre: string; asesores: number }>()
+  for (const r of (relaciones ?? []) as unknown as Rel[]) {
+    const actual = conteo.get(r.admin_id)
+    const nombre = [r.profiles?.first_name, r.profiles?.last_name].filter(Boolean).join(' ').trim() || 'Líder sin nombre'
+    conteo.set(r.admin_id, { nombre, asesores: (actual?.asesores ?? 0) + 1 })
+  }
+
+  return {
+    overrides: (overrides ?? []) as unknown as OverrideFila[],
+    lideres: [...conteo.entries()]
+      .map(([id, v]) => ({ id, ...v }))
+      .sort((a, b) => b.asesores - a.asesores),
+    prepagas: prepagas ?? [],
+    puedeEditar: perfil?.role === 'admin_principal',
+  }
+}
+
+const overrideSchema = z.object({
+  id: z.string().uuid().optional(),
+  supervisor_id: z.string().uuid(),
+  prepaga_id: z.string().uuid(),
+  // Nullable a propósito y sin booleano acompañante: cargar el porcentaje ES
+  // activarlo. Con un par `aplica` + `pct` existirían estados contradictorios
+  // (aplica=true con pct vacío) que alguien va a leer mal en una liquidación.
+  pct_equipo: z.number().positive().nullable(),
+  pct_venta_propia: z.number().positive().nullable(),
+  vigente_desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  activo: z.boolean(),
+})
+
+export async function guardarOverride(input: z.infer<typeof overrideSchema>) {
+  // Solo admin_principal, igual que la política RLS. El guard acá da un mensaje
+  // entendible; sin él, el RLS devolvería 0 filas afectadas y la UI diría que
+  // guardó bien.
+  const guard = await assertAdminPrincipal()
+  if (guard.error) return { error: guard.error }
+
+  const parsed = overrideSchema.safeParse(input)
+  if (!parsed.success) return { error: 'Datos inválidos' }
+  const d = parsed.data
+
+  if (d.pct_equipo === null && d.pct_venta_propia === null) {
+    return { error: 'Cargá al menos uno de los dos porcentajes: un override sin ninguno no paga nada.' }
+  }
+
+  const supabase = await createClient()
+  const fila = {
+    supervisor_id: d.supervisor_id,
+    prepaga_id: d.prepaga_id,
+    pct_equipo: d.pct_equipo,
+    pct_venta_propia: d.pct_venta_propia,
+    vigente_desde: d.vigente_desde,
+    activo: d.activo,
+    created_by: guard.user!.id,
+  }
+
+  const { data, error } = d.id
+    ? await supabase.from('supervisor_overrides').update(fila).eq('id', d.id).select('id')
+    : await supabase.from('supervisor_overrides').insert(fila).select('id')
+
+  if (error) {
+    // La única constraint que el usuario puede chocar escribiendo bien es la de
+    // unicidad; traducirla evita mostrarle el texto crudo de Postgres.
+    if (error.code === '23505') {
+      return { error: 'Ya existe un override para ese líder y esa prepaga con la misma fecha de vigencia. Cambiá la fecha o editá el que ya está.' }
+    }
+    return { error: error.message }
+  }
+  // El RLS no falla al bloquear un UPDATE: afecta 0 filas y devuelve success.
+  if (!data || data.length === 0) return { error: 'No se guardó: no tenés permiso para escribir overrides.' }
+
+  revalidatePath('/admin/comisiones/overrides')
+  revalidatePath('/admin/comisiones/bloqueos')
+  return { success: true }
+}
+
+export async function eliminarOverride(id: string) {
+  const guard = await assertAdminPrincipal()
+  if (guard.error) return { error: guard.error }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('supervisor_overrides').delete().eq('id', id).select('id')
+  if (error) return { error: error.message }
+  if (!data || data.length === 0) return { error: 'No se eliminó: no tenés permiso para escribir overrides.' }
+
+  revalidatePath('/admin/comisiones/overrides')
+  revalidatePath('/admin/comisiones/bloqueos')
+  return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// BLOQUEOS COMISIONALES (admin)
+//
+// Cuando falta un dato, `generarComisionParaAlta` no tira error: deja una
+// activity de tipo `comision_sin_regla` en el timeline del lead y devuelve.
+// Eso es correcto —es preferible no pagar a pagar mal— pero enterrado ahí
+// nadie lo ve, y la venta queda aprobada sin comisión sin que nadie se entere.
+// Esta función junta en un solo lugar todo lo que hoy frena o distorsiona una
+// liquidación, para que se corrija ANTES de aprobar y no después.
+// ---------------------------------------------------------------------------
+
+export type Bloqueo = {
+  clave: string
+  detalle: string
+}
+
+export type BloqueosComisionales = {
+  // Frenan la generación: la venta se aprueba y no se genera comisión.
+  asignacionesSinPct: Bloqueo[]
+  prepagasActivasSinReglas: Bloqueo[]
+  altasSinDatosComerciales: Bloqueo[]
+  // No frenan, pero producen números mal: margen cero o líderes sin cobrar.
+  reglasEnPlaceholder: Bloqueo[]
+  prepagasInactivasConReglas: Bloqueo[]
+  lideresSinOverride: Bloqueo[]
+}
+
+const PCT_PLACEHOLDER = 100
+
+export async function getBloqueosComisionales(): Promise<BloqueosComisionales> {
+  const vacio: BloqueosComisionales = {
+    asignacionesSinPct: [], prepagasActivasSinReglas: [], altasSinDatosComerciales: [],
+    reglasEnPlaceholder: [], prepagasInactivasConReglas: [], lideresSinOverride: [],
+  }
+  const guard = await assertAdmin()
+  if (guard.error) return vacio
+
+  // Cliente con service role: es un diagnóstico de toda la agencia y la
+  // pantalla ya está detrás de assertAdmin(). Con el cliente normal, el RLS de
+  // `prepaga_asesores` recortaría el conteo y el panel diría que falta menos
+  // de lo que realmente falta — el peor error posible en una pantalla cuyo
+  // propósito es justamente no dejar nada sin ver.
+  const db = createAdminClient()
+
+  const [
+    { data: asignaciones }, { data: prepagas }, { data: reglas },
+    { data: altas }, { data: relaciones }, { data: overrides },
+  ] = await Promise.all([
+    db.from('prepaga_asesores').select('comision_pct, prepagas(nombre, activa), profiles(first_name, last_name)'),
+    db.from('prepagas').select('id, nombre, activa'),
+    db.from('prepaga_comision_reglas').select('segmento, porcentaje, prepagas(nombre)'),
+    db.from('altas').select('id, tipo_alta, cuota, estado, leads(first_name, last_name), prepagas(nombre)')
+      .in('estado', ['en_proceso', 'enviada', 'observada']),
+    db.from('admin_asesores').select('admin_id, profiles!admin_asesores_admin_id_fkey(first_name, last_name)'),
+    db.from('supervisor_overrides').select('supervisor_id').eq('activo', true),
+  ])
+
+  const nombre = (p?: { first_name?: string | null; last_name?: string | null } | null) =>
+    [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim()
+
+  type Asig = { comision_pct: number | null; prepagas: { nombre: string; activa: boolean } | null; profiles: { first_name: string | null; last_name: string | null } | null }
+  type Regla = { segmento: string; porcentaje: number; prepagas: { nombre: string } | null }
+  type AltaAbierta = { id: string; tipo_alta: string | null; cuota: number | null; leads: { first_name: string | null; last_name: string | null } | null; prepagas: { nombre: string } | null }
+  type Rel = { admin_id: string; profiles: { first_name: string | null; last_name: string | null } | null }
+
+  const conReglas = new Set(
+    ((reglas ?? []) as unknown as Regla[]).map(r => r.prepagas?.nombre).filter(Boolean) as string[]
+  )
+
+  const asignacionesSinPct = ((asignaciones ?? []) as unknown as Asig[])
+    // Solo prepagas activas: una asignación a una prepaga dada de baja no
+    // frena ninguna venta, y listarla sería ruido que compite con lo urgente.
+    .filter(a => a.comision_pct === null && a.prepagas?.activa)
+    .map(a => ({
+      clave: a.prepagas?.nombre ?? '—',
+      detalle: nombre(a.profiles) || 'Asesor sin nombre',
+    }))
+    .sort((x, y) => x.clave.localeCompare(y.clave) || x.detalle.localeCompare(y.detalle))
+
+  const prepagasActivasSinReglas = (prepagas ?? [])
+    .filter(p => p.activa && !conReglas.has(p.nombre))
+    .map(p => ({ clave: p.nombre, detalle: 'Activa en el catálogo y sin ninguna regla comisional' }))
+
+  const prepagasInactivasConReglas = (prepagas ?? [])
+    .filter(p => !p.activa && conReglas.has(p.nombre))
+    .map(p => ({ clave: p.nombre, detalle: 'Tiene reglas cargadas pero está desactivada en el catálogo' }))
+
+  const reglasEnPlaceholder = ((reglas ?? []) as unknown as Regla[])
+    .filter(r => Number(r.porcentaje) === PCT_PLACEHOLDER)
+    .map(r => ({
+      clave: r.prepagas?.nombre ?? '—',
+      detalle: `${SEGMENTO_LABEL_BLOQUEO[r.segmento] ?? r.segmento} — sigue en ${PCT_PLACEHOLDER}%, el valor sembrado`,
+    }))
+    .sort((x, y) => x.clave.localeCompare(y.clave) || x.detalle.localeCompare(y.detalle))
+
+  const altasSinDatosComerciales = ((altas ?? []) as unknown as AltaAbierta[])
+    .filter(a => a.tipo_alta === null || a.cuota === null)
+    .map(a => {
+      const falta = [a.tipo_alta === null && 'tipo de alta', a.cuota === null && 'cuota'].filter(Boolean)
+      return {
+        clave: nombre(a.leads) || 'Sin nombre',
+        detalle: `${a.prepagas?.nombre ?? '—'} — falta ${falta.join(' y ')}`,
+      }
+    })
+
+  // Por relación y no por rol: líder es quien tiene gente a cargo, sea
+  // supervisor, admin o admin_principal.
+  const conOverride = new Set((overrides ?? []).map(o => o.supervisor_id))
+  const lideres = new Map<string, string>()
+  for (const r of (relaciones ?? []) as unknown as Rel[]) {
+    lideres.set(r.admin_id, nombre(r.profiles) || 'Líder sin nombre')
+  }
+  const lideresSinOverride = [...lideres.entries()]
+    .filter(([id]) => !conOverride.has(id))
+    .map(([, n]) => ({ clave: n, detalle: 'Conduce equipo y no tiene override cargado: no cobra nada por las ventas de su gente' }))
+
+  return {
+    asignacionesSinPct, prepagasActivasSinReglas, altasSinDatosComerciales,
+    reglasEnPlaceholder, prepagasInactivasConReglas, lideresSinOverride,
+  }
+}
+
+const SEGMENTO_LABEL_BLOQUEO: Record<string, string> = {
+  particular: 'Particular',
+  relacion_dependencia: 'Relación de dependencia',
+  monotributo: 'Monotributo',
+  pmo: 'PMO / Aportes',
 }
 
 // ---------------------------------------------------------------------------

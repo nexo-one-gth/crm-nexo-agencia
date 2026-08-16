@@ -1,8 +1,30 @@
 # Revisión del módulo de comisiones — agenda
 
-**Fecha:** 2026-08-08
+**Fecha:** 2026-08-08 · **revisado contra la base el 2026-08-16**
 **Fuente:** `Condiciones-Comerciales-Prepagas-NEXO-Salud.pdf` + estado real de la base
-**Estado:** pendiente de sesión de trabajo
+**Estado:** herramientas construidas; faltan los números reales
+
+> ### Medición del 2026-08-16 — los conteos de abajo quedaron viejos
+>
+> | | Este documento (8-ago) | Medido (16-ago) |
+> |---|---|---|
+> | Reglas de prepaga | 20, todas en 100 | **23**: 21 en 100 y 2 reales (PMO) |
+> | Asignaciones asesor↔prepaga | 17 — 10 con pct, **7 NULL** | 29 — 12 con pct, **17 NULL** |
+> | Prepagas activas sin reglas | 4 | 4, las mismas |
+>
+> Los bloqueos pasaron de 7 a 17: se siguieron asignando asesores a prepagas sin
+> cargarles el porcentaje. Ya no hace falta consultar la base para verlos —
+> `/admin/comisiones/bloqueos` los muestra en vivo, y los recuenta solo.
+>
+> Lo único cargado de verdad son las dos reglas PMO (DOCTOR RED 7,038% y
+> PREMEDIC 7,65%, ambas sobre sueldo bruto). Además **DOCTOR RED y SALUD CENTRAL
+> tienen reglas pero están desactivadas** en el catálogo: el problema inverso al
+> de las 4 activas sin reglas.
+>
+> La única comisión existente ilustra el punto 1 completo: AVALIAN particular,
+> base $50.000, prepaga al 100% → factura $50.000, paga $50.000, **margen 0**, y
+> ya está liquidada. Tiene `comision_pct_asesor` en NULL, o sea que se generó
+> antes de que existiera la guarda; es un registro del comportamiento viejo.
 
 ---
 
@@ -75,9 +97,11 @@ Es % de la cuota, como todo el resto. Ver el modelo de cálculo arriba.
 
 ---
 
-## 4bis. Módulo de facturación y margen (pedido, no construido)
+## 4bis. ✅ Módulo de facturación y margen — construido (2026-08-16)
 
-Pantalla que muestre **facturación total, pago de comisiones y margen de NEXO**. Todos los datos ya existen por venta:
+En `/admin/comisiones/margen`, agrupable por prepaga, mes, asesor o equipo. Marca en rojo las ventas de margen negativo y las que solo tienen override —sin fila `directa` no hay porcentaje de prepaga, así que su facturación no se puede calcular y se señala en vez de mostrarse como cero—. Sin cambios de schema, como estaba previsto.
+
+La fórmula, que sigue valiendo:
 
 ```sql
 -- por alta
@@ -131,3 +155,19 @@ El PDF define ventanas concretas —SANCOR lote julio = 25/06 al 23/07, PREVENCI
 3. Escalas por origen, cuando existan los números.
 4. Decomisión — es lo más grande y probablemente amerite su propio módulo.
 5. Cuotas, condicionamiento al pago, ámbito geográfico y ventanas de lote.
+
+---
+
+## Estado al 2026-08-16
+
+Se construyeron las herramientas; **los dos 🔴 siguen abiertos porque son datos, no código**. Los porcentajes reales son números negociados con cada prepaga y no están en el repo ni en la base.
+
+| | Dónde |
+|---|---|
+| Ver qué frena una liquidación | `/admin/comisiones/bloqueos` |
+| Cargar overrides de líder | `/admin/comisiones/overrides` — escritura solo `admin_principal` |
+| Facturación, pagos y margen | `/admin/comisiones/margen` |
+
+También se corrigió el tile de comisiones del dashboard, que sumaba por `asesor_id` en vez de `beneficiario_id` y por eso no le mostraba los overrides a ningún líder.
+
+**Lo que sigue bloqueado hasta que existan los números:** los 21 porcentajes en placeholder, las 17 asignaciones sin `comision_pct`, las 4 prepagas activas sin reglas y los 4 líderes sin override. Ninguna venta va a generar comisión correcta antes de eso, y las 6 altas abiertas además necesitan `tipo_alta` y `cuota`.
