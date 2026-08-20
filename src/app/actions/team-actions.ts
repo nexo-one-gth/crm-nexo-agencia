@@ -103,12 +103,19 @@ export async function getMiEquipoReparto(): Promise<{ data?: MiEquipoData; error
     }
   })
 
-  // Pendientes de reparto: lo que le asignaron al supervisor (su bucket) + el pool
-  // general sin asignar. Ambos son leads que todavía no están en manos de un asesor.
+  // Pendientes de reparto: el pool general sin asignar + lo que le asignaron
+  // al supervisor EXPLÍCITAMENTE para que lo reparta (pendiente_reparto=true).
+  //
+  // Antes esto era `assigned_to.eq.${callerId}` a secas, asumiendo que todo
+  // lead asignado al supervisor era "para repartir". Falso para quien además
+  // vende (caso Carolina): su propia cartera de asesor también cae bajo
+  // `assigned_to = su id`, y quedaba mezclada acá, ofrecida para "Repartir
+  // equitativo" junto con el pool real. `pendiente_reparto` es el dato que
+  // separa las dos cosas — no hay forma de distinguirlas mirando el rol.
   const { data: pend } = await supabase
     .from('leads')
     .select('id, first_name, last_name, phone, assigned_to, created_at, pipeline_stages!inner(name)')
-    .or(`assigned_to.eq.${callerId},assigned_to.is.null`)
+    .or(`and(assigned_to.eq.${callerId},pendiente_reparto.eq.true),assigned_to.is.null`)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(500)
