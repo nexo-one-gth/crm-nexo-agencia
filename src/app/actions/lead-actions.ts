@@ -17,6 +17,11 @@ export async function getAdvisorLeads() {
       pipeline_stages!inner(id, name)
     `)
         .eq('assigned_to', user.id)
+        // Si sos supervisor y además vendés, `assigned_to = vos` mezcla tu
+        // cartera real con cualquier lote que te hayan pasado solo para que
+        // lo repartas (`pendiente_reparto=true`). Ese lote se ve en /equipo,
+        // no en tu embudo propio.
+        .eq('pendiente_reparto', false)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
@@ -229,12 +234,17 @@ export async function getAllLeads() {
             .select('asesor_id')
             .eq('admin_id', user.id)
 
+        // El `and(...)` sobre la propia fila excluye los leads que solo están
+        // de paso para reparto (`pendiente_reparto=true`): esos son del pool
+        // a repartir en /equipo, no cartera propia para ver en el embudo. Los
+        // leads del equipo y el pool sin asignar no llevan esa restricción —
+        // el filtro es sobre la fila del propio caller, no sobre las demás.
         const asesorIds = (equipo ?? []).map(a => a.asesor_id)
         if (asesorIds.length > 0) {
             const idList = asesorIds.join(',')
-            query = query.or(`assigned_to.in.(${idList}),assigned_to.eq.${user.id},assigned_to.is.null`)
+            query = query.or(`assigned_to.in.(${idList}),and(assigned_to.eq.${user.id},pendiente_reparto.eq.false),assigned_to.is.null`)
         } else if (isSupervisorRole(profile?.role)) {
-            query = query.or(`assigned_to.eq.${user.id},assigned_to.is.null`)
+            query = query.or(`and(assigned_to.eq.${user.id},pendiente_reparto.eq.false),assigned_to.is.null`)
         }
         // Un admin sin equipo asignado sigue viendo todo (comportamiento previo).
     } else {
@@ -315,6 +325,13 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
         .update({
             assigned_to: advisorId,
             pipeline_stage_id: stage.id,
+            // En cuanto un lead aterriza en un asesor puntual (incluido el
+            // propio supervisor, si se lo queda para trabajar), deja de estar
+            // "pendiente de reparto" — ya es cartera de alguien, no más un
+            // lote en tránsito. Sin este reseteo, un lead que alguna vez pasó
+            // por `pendiente_reparto=true` podría volver a aparecer como
+            // repartible en /equipo aunque ya esté asignado y en trabajo.
+            pendiente_reparto: false,
         })
         .in('id', leadIds)
 
