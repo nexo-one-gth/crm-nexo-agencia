@@ -82,7 +82,11 @@ export function EmbudoConAlcance({ leads, userId, misAsesoresIds, ...boardProps 
         </div>
       )}
 
-      <LeadFunnelBoard {...boardProps} initialLeads={leadsPorAlcance} />
+      <LeadFunnelBoard
+        {...boardProps}
+        initialLeads={leadsPorAlcance}
+        ocultarColumnaSinAsignar={alcance === 'propias'}
+      />
     </div>
   )
 }

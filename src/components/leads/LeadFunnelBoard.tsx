@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { LeadCard } from './LeadCard'
 import {
     MessageCircle, Clock, CheckCircle2, AlertCircle, UserMinus,
-    Plus, FileUp, UserCheck, X, Filter, ChevronDown, ChevronRight,
+    Plus, UserCheck, X, Filter, ChevronDown, ChevronRight,
     User, Search, RefreshCw, SortAsc, ArrowUpDown, AlertTriangle, DollarSign, Trash2,
     LayoutGrid, Columns
 } from 'lucide-react'
@@ -72,6 +72,13 @@ interface LeadFunnelBoardProps {
         full_name: string | null
         whatsapp_name: string | null
     } | null
+    /**
+     * En la vista "Mi cartera" (alcance propio) los leads sin asignar nunca
+     * aparecen —esa lista ya viene filtrada a lo que es del usuario—, así
+     * que la columna queda siempre vacía. La asignación se hace desde "Mi
+     * equipo" / "Toda la agencia", donde sí tiene sentido mostrarla.
+     */
+    ocultarColumnaSinAsignar?: boolean
 }
 
 // El color de cada etapa viene de stage-colors.ts (única fuente de verdad, compartida
@@ -128,7 +135,7 @@ const sortLeads = (leads: Lead[], mode: SortMode): Lead[] => {
     })
 }
 
-export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, conduceEquipo, advisorToAdmin, initialStage, userProfile }: LeadFunnelBoardProps) => {
+export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, conduceEquipo, advisorToAdmin, initialStage, userProfile, ocultarColumnaSinAsignar }: LeadFunnelBoardProps) => {
     const leads = initialLeads
     const [isImportOpen, setIsImportOpen] = useState(false)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -156,10 +163,10 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, condu
     const router = useRouter()
 
     const effectiveStages = useMemo(() => STAGES.filter(s => {
-        if (s.audiencia === 'admin') return !!isAdmin
+        if (s.audiencia === 'admin') return !!isAdmin && !ocultarColumnaSinAsignar
         if (s.audiencia === 'conduccion') return !!conduceEquipo
         return true
-    }), [isAdmin, conduceEquipo])
+    }), [isAdmin, conduceEquipo, ocultarColumnaSinAsignar])
 
     const initialTabIndex = initialStage
         ? effectiveStages.findIndex(s => s.name === initialStage)
@@ -539,25 +546,11 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, condu
                             <span className="sm:hidden">Nuevo</span>
                         </button>
 
-                        {isAdmin && (
-                            <button
-                                onClick={() => setIsImportOpen(true)}
-                                className="px-3 sm:px-4 py-2 rounded-xl glass-button text-slate-700 dark:text-slate-300 text-xs sm:text-sm font-bold flex items-center gap-1.5 hover:scale-105 transition-all"
-                            >
-                                <FileUp className="w-4 h-4" />
-                                <span className="hidden sm:inline">Importar</span>
-                            </button>
-                        )}
-
-                        {isAdmin && (
-                            <button
-                                onClick={toggleSelectionMode}
-                                className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all ${isSelectionMode ? 'bg-amber-500 text-white' : 'glass-button text-slate-600 dark:text-slate-400'}`}
-                            >
-                                {isSelectionMode ? <X className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                                <span className="hidden sm:inline">{isSelectionMode ? 'Cancelar' : 'Selección masiva'}</span>
-                            </button>
-                        )}
+                        {/* Botones "Importar" y "Selección masiva" se sacaron del toolbar
+                            por pedido: no son acciones de uso frecuente y ensuciaban la
+                            barra principal. El estado/lógica de import y selección múltiple
+                            se dejan intactos (dialogs, isSelectionMode, etc.) por si se
+                            vuelven a exponer más adelante desde otro lugar de la UI. */}
 
                         {/* Badge docs pendientes */}
                         {pendingDocsCount > 0 && (
