@@ -1,5 +1,5 @@
 import { getAllLeads } from '@/app/actions/lead-actions'
-import { LeadFunnelBoard } from '@/components/leads/LeadFunnelBoard'
+import { EmbudoConAlcance } from '@/components/leads/EmbudoConAlcance'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
@@ -23,7 +23,12 @@ export default async function FunnelPage({
     // (un supervisor —o una admin con cartera propia— queda afuera de la condición).
     let conduceEquipo = false
     let userProfile = null
-    let advisorToAdmin: AdvisorToAdmin = {}
+    const advisorToAdmin: AdvisorToAdmin = {}
+    // Selector de alcance (Mi cartera / Mi equipo / Toda la agencia): qué
+    // pestañas existen se decide por el DATO, no por el rol — mismo criterio
+    // que en /altas y /equipo. "Mi equipo" solo aparece si hay filas propias
+    // en admin_asesores, sea cual sea el rol de quien mira.
+    let misAsesoresIds: string[] = []
 
     if (user) {
         const { data: profile } = await supabase
@@ -39,6 +44,12 @@ export default async function FunnelPage({
             full_name: `${profile.first_name} ${profile.last_name}`,
             whatsapp_name: profile.first_name
         } : null
+
+        if (conduceEquipo) {
+            const { data: equipo } = await supabase
+                .from('admin_asesores').select('asesor_id').eq('admin_id', user.id)
+            misAsesoresIds = (equipo ?? []).map(a => a.asesor_id)
+        }
 
         // Para admin_principal: construir mapa asesor_id → admin
         if (isAdminPrincipal) {
@@ -88,9 +99,10 @@ export default async function FunnelPage({
                 </div>
             </div>
 
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            <LeadFunnelBoard
-                initialLeads={leads as any}
+            <EmbudoConAlcance
+                leads={leads}
+                userId={user?.id ?? ''}
+                misAsesoresIds={misAsesoresIds}
                 isAdmin={isAdmin}
                 isAdminPrincipal={isAdminPrincipal}
                 conduceEquipo={conduceEquipo}

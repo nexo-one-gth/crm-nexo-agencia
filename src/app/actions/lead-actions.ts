@@ -320,6 +320,31 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
         .limit(1)
         .single()
 
+    // Cadena de derivación: admin/admin_principal → supervisor → asesor (o el
+    // propio supervisor). Un lote que un admin le pasa a alguien que conduce
+    // un equipo queda "pendiente de asignación" en su buzón — es el supervisor
+    // quien decide si lo trabaja él o lo reparte. Cualquier otro salto de la
+    // cadena (un supervisor repartiendo dentro de su propio equipo, o
+    // asignándoselo a sí mismo; un admin asignando a un asesor sin equipo)
+    // aterriza directo, como siempre.
+    //
+    // Las tres condiciones a la vez, ninguna sobra:
+    // - quien asigna es admin/admin_principal: es el único nivel que "empieza"
+    //   la cadena, un supervisor repartiendo siempre resuelve, nunca reenvía.
+    // - el destino no es quien asigna: una autoasignación siempre es "me lo
+    //   quedo", nunca "quede pendiente para mí mismo".
+    // - el destino conduce un equipo: si no tiene equipo, no hay nadie a quien
+    //   repartírselo después, así que no tiene sentido dejarlo pendiente.
+    const { data: perfilCaller } = await supabase
+        .from('profiles').select('role').eq('id', user.id).single()
+    const asignaAdminAOtro = isAdminRole(perfilCaller?.role) && advisorId !== user.id
+    let quedaPendiente = false
+    if (asignaAdminAOtro) {
+        const { data: equipoDestino } = await supabase
+            .from('admin_asesores').select('asesor_id').eq('admin_id', advisorId).limit(1)
+        quedaPendiente = (equipoDestino?.length ?? 0) > 0
+    }
+
     const { error } = await supabase
         .from('leads')
         .update({
@@ -327,11 +352,12 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
             pipeline_stage_id: stage.id,
             // En cuanto un lead aterriza en un asesor puntual (incluido el
             // propio supervisor, si se lo queda para trabajar), deja de estar
-            // "pendiente de reparto" — ya es cartera de alguien, no más un
-            // lote en tránsito. Sin este reseteo, un lead que alguna vez pasó
-            // por `pendiente_reparto=true` podría volver a aparecer como
+            // "pendiente de reparto" salvo que este mismo movimiento sea el
+            // que recién lo puso en tránsito (ver `quedaPendiente` arriba).
+            // Sin este reseteo, un lead que alguna vez pasó por
+            // `pendiente_reparto=true` podría volver a aparecer como
             // repartible en /equipo aunque ya esté asignado y en trabajo.
-            pendiente_reparto: false,
+            pendiente_reparto: quedaPendiente,
         })
         .in('id', leadIds)
 
@@ -426,7 +452,11 @@ export async function updateLead(data: Record<string, unknown>) {
         observaciones_cotizacion: z.string().optional(),
         interest_level: z.number().int().optional(),
         source: z.string().optional(),
-        origen: z.enum(['nexo', 'referido', 'campania']).optional(),
+        // `origen` NO se acepta acá a propósito: queda definido por la vía de
+        // ingreso del lead (importación → 'nexo'/'campania', carga manual del
+        // asesor → 'referido', asignación a campaña → 'campania') y define la
+        // escala comisional. Editarlo a mano cambiaría la comisión, así que el
+        // schema lo descarta: zod strippea las claves que no declara.
         notes: z.string().optional(),
         assigned_to_name: z.string().optional(),
         stage_name: z.string().optional(),
