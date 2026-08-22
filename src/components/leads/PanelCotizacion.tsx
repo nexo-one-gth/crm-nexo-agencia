@@ -493,8 +493,13 @@ export function PanelCotizacion({ leadId, stageName }: PanelCotizacionProps) {
                     <>
                       <hr className="border-white/10" />
 
-                      {/* Materiales / recursos de la prepaga en Drive */}
+                      {/* Materiales / recursos de la prepaga en Drive.
+                          key=prepagaId fuerza remount al cambiar de prepaga: sin esto,
+                          React reutiliza la instancia y el estado interno (items, carpeta
+                          actual) queda pegado a la primera prepaga que se abrió, aunque
+                          el título sí se actualice. */}
                       <RecursosPrepaga
+                        key={prepagaSeleccionada.id}
                         prepagaId={prepagaSeleccionada.id}
                         prepagaNombre={prepagaSeleccionada.nombre}
                       />
