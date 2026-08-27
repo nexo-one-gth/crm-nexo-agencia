@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { isAdminRole } from '@/lib/supabase/assert-admin'
 import { redirect, notFound } from 'next/navigation'
-import { getAltaById, getIntegrantes } from '@/app/actions/prepaga-actions'
+import { getAltaById, getIntegrantes, getFaltantesAlta } from '@/app/actions/prepaga-actions'
 import Link from 'next/link'
 import { ArrowLeft, Phone, User, BadgeDollarSign } from 'lucide-react'
 import { ChecklistProgress } from '@/components/prepagas/ChecklistProgress'
@@ -12,6 +12,7 @@ import { DatosComerciales } from './DatosComerciales'
 import { DatosEspecificos } from './DatosEspecificos'
 import { IntegrantesEditor, type Integrante } from './IntegrantesEditor'
 import { ResumenTramite } from './ResumenTramite'
+import { DocumentacionPosterior } from './DocumentacionPosterior'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -39,6 +40,13 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
 
   const integrantes = (await getIntegrantes(id)) as unknown as Integrante[]
 
+  // Qué le falta al trámite para poder enviarse. Solo tiene sentido calcularlo
+  // mientras el alta todavía se puede enviar.
+  const faltantes =
+    alta.estado === 'en_proceso' || alta.estado === 'observada'
+      ? await getFaltantesAlta(id)
+      : []
+
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   const esAdmin = isAdminRole(profile?.role)
 
@@ -60,11 +68,17 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
     archivo_path: string | null
     drive_file_url: string | null
     seccion?: string
+    momento?: string
   }[]
 
-  // Separar ítems de documentación (archivos/checks) de datos específicos por prepaga
-  const itemsDatos = allItems.filter(i => i.seccion === 'datos')
-  const items = allItems.filter(i => i.seccion !== 'datos')
+  // Dos cortes distintos sobre el mismo checklist:
+  //   `seccion` = qué tipo de cosa es (documento vs dato de la prepaga)
+  //   `momento` = cuándo vence (al enviar vs después de que el admin apruebe)
+  const itemsEnvio = allItems.filter(i => (i.momento ?? 'envio') === 'envio')
+  const itemsPosteriores = allItems.filter(i => i.momento === 'post_aprobacion')
+
+  const itemsDatos = itemsEnvio.filter(i => i.seccion === 'datos')
+  const items = itemsEnvio.filter(i => i.seccion !== 'datos')
 
   const requeridos = items.filter(i => i.requerido).length
   const completados = items.filter(i => i.requerido && i.completado).length
@@ -203,8 +217,17 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
       {/* Integrantes */}
       <IntegrantesEditor altaId={alta.id} integrantes={integrantes} />
 
-      {/* Checklist interactivo (solo documentos) */}
+      {/* Checklist interactivo (documentos del envío) */}
       <ChecklistInteractivo altaId={alta.id} items={items} />
+
+      {/* Documentación que llega después de la aprobación + pase a liquidación */}
+      <DocumentacionPosterior
+        altaId={alta.id}
+        items={itemsPosteriores}
+        estado={alta.estado}
+        isAdmin={esAdmin}
+        yaLiquidando={Boolean(comision)}
+      />
 
       {/* Resumen del trámite */}
       <ResumenTramite
@@ -214,7 +237,7 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
       />
 
       {/* Cambiar estado */}
-      <CambiarEstadoAlta altaId={alta.id} estadoActual={alta.estado as 'en_proceso' | 'enviada' | 'observada' | 'aprobada' | 'rechazada'} observaciones={alta.observaciones} isAdmin={esAdmin} />
+      <CambiarEstadoAlta altaId={alta.id} estadoActual={alta.estado as 'en_proceso' | 'enviada' | 'observada' | 'aprobada' | 'rechazada'} observaciones={alta.observaciones} isAdmin={esAdmin} faltantes={faltantes} />
     </div>
   )
 }

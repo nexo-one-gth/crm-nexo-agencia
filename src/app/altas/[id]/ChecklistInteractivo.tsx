@@ -23,6 +23,8 @@ type Item = {
 interface ChecklistInteractivoProps {
   altaId: string
   items: Item[]
+  /** Título de la sección. Por defecto "Documentación". */
+  titulo?: string
 }
 
 const TIPO_ICONO: Record<string, React.ElementType> = {
@@ -208,7 +210,7 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
   )
 }
 
-export function ChecklistInteractivo({ altaId, items }: ChecklistInteractivoProps) {
+export function ChecklistInteractivo({ altaId, items, titulo = 'Documentación' }: ChecklistInteractivoProps) {
   const [, forceUpdate] = useState(0)
 
   const requeridos = items.filter(i => i.requerido)
@@ -216,7 +218,7 @@ export function ChecklistInteractivo({ altaId, items }: ChecklistInteractivoProp
 
   return (
     <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/10 p-5 space-y-4">
-      <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300">Documentación</h2>
+      <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300">{titulo}</h2>
 
       {requeridos.length > 0 && (
         <div className="space-y-2">

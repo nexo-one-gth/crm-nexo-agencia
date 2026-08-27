@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       activities: {
         Row: {
+          alta_id: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -24,6 +25,7 @@ export type Database = {
           type: string | null
         }
         Insert: {
+          alta_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -32,6 +34,7 @@ export type Database = {
           type?: string | null
         }
         Update: {
+          alta_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -170,6 +173,7 @@ export type Database = {
           plantilla_item_id: string | null
           requerido: boolean
           seccion: string
+          momento: string
           tipo_dato: string
           valor_fecha: string | null
           valor_numero: number | null
@@ -188,6 +192,7 @@ export type Database = {
           plantilla_item_id?: string | null
           requerido?: boolean
           seccion?: string
+          momento?: string
           tipo_dato: string
           valor_fecha?: string | null
           valor_numero?: number | null
@@ -206,6 +211,7 @@ export type Database = {
           plantilla_item_id?: string | null
           requerido?: boolean
           seccion?: string
+          momento?: string
           tipo_dato?: string
           valor_fecha?: string | null
           valor_numero?: number | null
@@ -242,6 +248,7 @@ export type Database = {
           cantidad_capitas: number | null
           created_at: string
           cuota: number | null
+          cotizacion_id: string | null
           drive_folder_id: string | null
           drive_folder_url: string | null
           enviada_at: string | null
@@ -268,6 +275,7 @@ export type Database = {
           cantidad_capitas?: number | null
           created_at?: string
           cuota?: number | null
+          cotizacion_id?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
           enviada_at?: string | null
@@ -294,6 +302,7 @@ export type Database = {
           cantidad_capitas?: number | null
           created_at?: string
           cuota?: number | null
+          cotizacion_id?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
           enviada_at?: string | null
@@ -449,6 +458,7 @@ export type Database = {
           plantilla_id: string
           requerido: boolean
           seccion: string
+          momento: string
           tipo_dato: string
         }
         Insert: {
@@ -458,6 +468,7 @@ export type Database = {
           plantilla_id: string
           requerido?: boolean
           seccion?: string
+          momento?: string
           tipo_dato?: string
         }
         Update: {
@@ -467,6 +478,7 @@ export type Database = {
           plantilla_id?: string
           requerido?: boolean
           seccion?: string
+          momento?: string
           tipo_dato?: string
         }
         Relationships: [

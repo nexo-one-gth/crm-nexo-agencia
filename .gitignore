@@ -51,3 +51,6 @@ next-env.d.ts
 # Excepción: symlinks generados localmente por `npx skills add` (no portables).
 .claude/skills/supabase
 .claude/skills/supabase-postgres-best-practices
+
+# Scratch: archivos a borrar a mano (el shell del bridge no puede hacer rm)
+_to_delete/
