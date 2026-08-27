@@ -445,7 +445,7 @@ export async function getAltas() {
       prepaga_planes(nombre),
       leads(first_name, last_name, phone),
       profiles!altas_asesor_id_fkey(first_name, last_name),
-      alta_items(id, requerido, completado)
+      alta_items(id, requerido, completado, momento)
     `)
     .order('created_at', { ascending: false })
 
@@ -540,11 +540,12 @@ export async function getAltasTablero(): Promise<AltasTablero> {
     prepagas: { nombre: string } | null
     prepaga_planes: { nombre: string } | null
     profiles: { first_name: string | null; last_name: string | null } | null
-    alta_items: { requerido: boolean; completado: boolean }[] | null
+    alta_items: { requerido: boolean; completado: boolean; momento: string }[] | null
   }
 
   const rows: AltaTableroRow[] = (altas as unknown as AltaCruda[]).map(a => {
     const items = a.alta_items ?? []
+    const itemsEnvio = items.filter(i => (i.momento ?? 'envio') === 'envio')
     const jefe = lider.get(a.asesor_id) ?? null
 
     return {
@@ -560,8 +561,11 @@ export async function getAltasTablero(): Promise<AltasTablero> {
       lead_nombre: nombreCompleto(a.leads) || 'Sin nombre',
       prepaga_nombre: a.prepagas?.nombre ?? '—',
       plan_nombre: a.prepaga_planes?.nombre ?? null,
-      requeridos: items.filter(i => i.requerido).length,
-      completados: items.filter(i => i.requerido && i.completado).length,
+      // Solo los ítems del envío. Contar también los post-aprobación dejaría un
+      // trámite listo para mandar mostrándose 5/6 en el tablero, y no habría
+      // forma de completarlo antes de que el admin lo apruebe.
+      requeridos: itemsEnvio.filter(i => i.requerido).length,
+      completados: itemsEnvio.filter(i => i.requerido && i.completado).length,
     }
   })
 

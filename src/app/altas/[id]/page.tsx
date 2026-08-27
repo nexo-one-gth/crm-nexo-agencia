@@ -220,14 +220,6 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
       {/* Checklist interactivo (documentos del envío) */}
       <ChecklistInteractivo altaId={alta.id} items={items} />
 
-      {/* Documentación que llega después de la aprobación + pase a liquidación */}
-      <DocumentacionPosterior
-        altaId={alta.id}
-        items={itemsPosteriores}
-        estado={alta.estado}
-        isAdmin={esAdmin}
-        yaLiquidando={Boolean(comision)}
-      />
 
       {/* Resumen del trámite */}
       <ResumenTramite
@@ -238,6 +230,17 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
 
       {/* Cambiar estado */}
       <CambiarEstadoAlta altaId={alta.id} estadoActual={alta.estado as 'en_proceso' | 'enviada' | 'observada' | 'aprobada' | 'rechazada'} observaciones={alta.observaciones} isAdmin={esAdmin} faltantes={faltantes} />
+
+      {/* Documentación posterior a la aprobación + pase a liquidación.
+          Va al final: es el último tramo del ciclo, después de que el alta
+          cambió de estado. */}
+      <DocumentacionPosterior
+        altaId={alta.id}
+        items={itemsPosteriores}
+        estado={alta.estado}
+        isAdmin={esAdmin}
+        yaLiquidando={Boolean(comision)}
+      />
     </div>
   )
 }
