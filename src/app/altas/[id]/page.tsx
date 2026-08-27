@@ -3,7 +3,7 @@ import { isAdminRole } from '@/lib/supabase/assert-admin'
 import { redirect, notFound } from 'next/navigation'
 import { getAltaById, getIntegrantes, getFaltantesAlta } from '@/app/actions/prepaga-actions'
 import Link from 'next/link'
-import { ArrowLeft, Phone, User, BadgeDollarSign } from 'lucide-react'
+import { ArrowLeft, Phone, User, BadgeDollarSign, Package, Download } from 'lucide-react'
 import { ChecklistProgress } from '@/components/prepagas/ChecklistProgress'
 import { ChecklistInteractivo } from './ChecklistInteractivo'
 import { CambiarEstadoAlta } from './CambiarEstadoAlta'
@@ -124,8 +124,11 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      {/* Carpeta de Drive del trámite */}
-      <CarpetaDriveBanner altaId={alta.id} driveFolderUrl={alta.drive_folder_url ?? null} />
+      {/* Carpeta de Drive del trámite. Solo admin: los asesores no son miembros
+          de la unidad compartida de altas, así que el link les daría un 403. */}
+      {esAdmin && (
+        <CarpetaDriveBanner altaId={alta.id} driveFolderUrl={alta.drive_folder_url ?? null} />
+      )}
 
       {/* Datos del prospecto */}
       <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/10 p-5">
@@ -218,7 +221,7 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
       <IntegrantesEditor altaId={alta.id} integrantes={integrantes} />
 
       {/* Checklist interactivo (documentos del envío) */}
-      <ChecklistInteractivo altaId={alta.id} items={items} />
+      <ChecklistInteractivo altaId={alta.id} items={items} isAdmin={esAdmin} />
 
 
       {/* Resumen del trámite */}
@@ -227,6 +230,27 @@ export default async function AltaDetallePage({ params }: { params: Promise<{ id
         resumenInicial={alta.resumen_texto ?? null}
         driveUrlInicial={alta.resumen_drive_url ?? null}
       />
+
+      {/* Paquete para mandarle a la prepaga. Solo admin: es la documentación
+          completa del socio en un archivo. */}
+      {esAdmin && (
+        <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-white/10 p-5 space-y-3">
+          <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+            <Package className="w-4 h-4 text-blue-500" />
+            Paquete para la prepaga
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Un ZIP con la documentación cargada y el resumen del trámite, para adjuntar al mail o al WhatsApp.
+          </p>
+          <a
+            href={`/api/altas/${alta.id}/paquete`}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/20 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Descargar paquete
+          </a>
+        </section>
+      )}
 
       {/* Cambiar estado */}
       <CambiarEstadoAlta altaId={alta.id} estadoActual={alta.estado as 'en_proceso' | 'enviada' | 'observada' | 'aprobada' | 'rechazada'} observaciones={alta.observaciones} isAdmin={esAdmin} faltantes={faltantes} />

@@ -25,6 +25,12 @@ interface ChecklistInteractivoProps {
   items: Item[]
   /** Título de la sección. Por defecto "Documentación". */
   titulo?: string
+  /**
+   * Solo los admins son miembros de la unidad compartida de altas. Al asesor
+   * mostrarle el link de Drive le daría un 403 de Google, así que ve que el
+   * archivo está cargado y nada más.
+   */
+  isAdmin?: boolean
 }
 
 const TIPO_ICONO: Record<string, React.ElementType> = {
@@ -35,7 +41,7 @@ const TIPO_ICONO: Record<string, React.ElementType> = {
   numero: Hash,
 }
 
-function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpdate: () => void }) {
+function ItemRow({ item, altaId, onUpdate, isAdmin }: { item: Item; altaId: string; onUpdate: () => void; isAdmin: boolean }) {
   const [isPending, startTransition] = useTransition()
   const [valor, setValor] = useState(item.valor_texto ?? item.valor_fecha ?? String(item.valor_numero ?? ''))
   const [editando, setEditando] = useState(false)
@@ -127,7 +133,7 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
               <div className="flex items-center gap-3">
                 {item.drive_file_url || item.archivo_path ? (
                   <>
-                    {item.drive_file_url ? (
+                    {item.drive_file_url && isAdmin ? (
                       <a
                         href={item.drive_file_url}
                         target="_blank"
@@ -210,7 +216,7 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
   )
 }
 
-export function ChecklistInteractivo({ altaId, items, titulo = 'Documentación' }: ChecklistInteractivoProps) {
+export function ChecklistInteractivo({ altaId, items, titulo = 'Documentación', isAdmin = false }: ChecklistInteractivoProps) {
   const [, forceUpdate] = useState(0)
 
   const requeridos = items.filter(i => i.requerido)
@@ -224,7 +230,7 @@ export function ChecklistInteractivo({ altaId, items, titulo = 'Documentación' 
         <div className="space-y-2">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Requeridos</p>
           {requeridos.map(item => (
-            <ItemRow key={item.id} item={item} altaId={altaId} onUpdate={() => forceUpdate(n => n + 1)} />
+            <ItemRow key={item.id} item={item} altaId={altaId} isAdmin={isAdmin} onUpdate={() => forceUpdate(n => n + 1)} />
           ))}
         </div>
       )}
@@ -233,7 +239,7 @@ export function ChecklistInteractivo({ altaId, items, titulo = 'Documentación' 
         <div className="space-y-2">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Opcionales</p>
           {opcionales.map(item => (
-            <ItemRow key={item.id} item={item} altaId={altaId} onUpdate={() => forceUpdate(n => n + 1)} />
+            <ItemRow key={item.id} item={item} altaId={altaId} isAdmin={isAdmin} onUpdate={() => forceUpdate(n => n + 1)} />
           ))}
         </div>
       )}

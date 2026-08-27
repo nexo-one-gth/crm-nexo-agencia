@@ -84,6 +84,7 @@ export function DocumentacionPosterior({ altaId, items, estado, isAdmin, yaLiqui
         altaId={altaId}
         items={items}
         titulo="Documentación posterior a la aprobación"
+        isAdmin={isAdmin}
       />
 
       {yaLiquidando ? (

@@ -6,7 +6,7 @@ import { assertAdmin, isAdminRole } from '@/lib/supabase/assert-admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import {
   listarContenidoCarpeta,
-  crearCarpetaDrive,
+  asegurarRutaCarpetas,
   subirArchivoDrive,
   guardarDocResumen,
   type DriveItem,
@@ -816,19 +816,24 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
   // Crear la carpeta del trámite en Drive (best-effort: si falla, el alta igual
   // se crea y se puede reintentar con crearCarpetaAlta).
   try {
-    const { data: prepaga } = await supabase
-      .from('prepagas')
-      .select('drive_folder_id')
-      .eq('id', parsed.data.prepaga_id)
-      .single()
+    const raizAltas = process.env.GOOGLE_DRIVE_ALTAS_ROOT_ID
+    if (raizAltas) {
+      const { data: prepaga } = await supabase
+        .from('prepagas')
+        .select('nombre')
+        .eq('id', parsed.data.prepaga_id)
+        .single()
 
-    if (prepaga?.drive_folder_id) {
-      const nombreCarpeta = nombreCarpetaAlta(
-        leadInfo?.first_name,
-        leadInfo?.last_name,
-        alta.id
+      const carpeta = await asegurarRutaCarpetas(
+        raizAltas,
+        segmentosCarpetaAlta({
+          prepagaNombre: prepaga?.nombre,
+          firstName: leadInfo?.first_name,
+          lastName: leadInfo?.last_name,
+          dni: leadInfo?.dni,
+          altaId: alta.id,
+        })
       )
-      const carpeta = await crearCarpetaDrive(prepaga.drive_folder_id, nombreCarpeta)
       await supabase
         .from('altas')
         .update({ drive_folder_id: carpeta.id, drive_folder_url: carpeta.urlVista })
@@ -858,19 +863,35 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
   return { data: alta }
 }
 
-// Nombre de la carpeta del trámite: "Apellido Nombre - AAAA-MM-DD".
-// Si no hay nombre, usa el id corto del alta como fallback.
-function nombreCarpetaAlta(
-  firstName?: string | null,
-  lastName?: string | null,
-  altaId?: string
-): string {
-  const fecha = new Date().toISOString().slice(0, 10)
-  const partes = [lastName, firstName].filter(Boolean).join(' ').trim()
-  const base = partes || `Alta ${altaId?.slice(0, 8) ?? ''}`.trim()
-  // Sanitizar caracteres problemáticos para nombres de carpeta
-  const limpio = base.replace(/[\\/:*?"<>|]/g, '').trim()
-  return `${limpio} - ${fecha}`
+// Ruta del trámite dentro de la unidad compartida de altas:
+//
+//   2026-08 / SANCOR SALUD / TELLERIA CLOSSA NAZARENO IVAN - 43268808 - 3df0b2b3
+//
+// Tres decisiones, contra el "Apellido Nombre - fecha" plano que había antes:
+//   - el mes arriba mantiene cada carpeta chica; Drive se vuelve incómodo
+//     pasadas unas cientos de entradas en un mismo nivel;
+//   - el DNI porque dos socios se pueden llamar igual;
+//   - el id corto del alta porque un mismo socio puede tener dos trámites (un
+//     rechazo y un reintento con otra prepaga) y las carpetas colisionarían.
+//
+// Y sobre todo: cuelga de GOOGLE_DRIVE_ALTAS_ROOT_ID, NO de la carpeta de la
+// prepaga. Ahí adentro está el material comercial que los asesores navegan
+// desde /recursos: dejar los trámites en el mismo lugar significaba que
+// cualquier asesor con la prepaga asignada veía los DNI y los recibos de sueldo
+// de los socios de todos los demás.
+function segmentosCarpetaAlta(params: {
+  prepagaNombre?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  dni?: string | null
+  altaId: string
+}): string[] {
+  const mes = new Date().toISOString().slice(0, 7) // AAAA-MM
+  const nombre = [params.lastName, params.firstName].filter(Boolean).join(' ').trim()
+  const carpetaSocio = [nombre || 'Sin nombre', params.dni, params.altaId.slice(0, 8)]
+    .filter(Boolean)
+    .join(' - ')
+  return [mes, params.prepagaNombre || 'Sin prepaga', carpetaSocio]
 }
 
 // (Re)crea la carpeta de Drive de un alta que no la tenga (o falló al iniciar).
@@ -881,25 +902,30 @@ export async function crearCarpetaAlta(altaId: string) {
 
   const { data: alta } = await supabase
     .from('altas')
-    .select('id, prepaga_id, drive_folder_id, leads(first_name, last_name)')
+    .select('id, prepaga_id, drive_folder_id, prepagas(nombre), leads(first_name, last_name, dni)')
     .eq('id', altaId)
     .single()
   if (!alta) return { error: 'Alta no encontrada' }
   if (alta.drive_folder_id) return { error: 'La carpeta ya existe' }
 
-  const { data: prepaga } = await supabase
-    .from('prepagas')
-    .select('drive_folder_id')
-    .eq('id', alta.prepaga_id)
-    .single()
-  if (!prepaga?.drive_folder_id) {
-    return { error: 'La prepaga no tiene carpeta de Drive configurada' }
+  const raizAltas = process.env.GOOGLE_DRIVE_ALTAS_ROOT_ID
+  if (!raizAltas) {
+    return { error: 'Falta configurar GOOGLE_DRIVE_ALTAS_ROOT_ID (unidad compartida de altas)' }
   }
 
-  const lead = alta.leads as { first_name: string; last_name: string | null } | null
+  const lead = alta.leads as { first_name: string; last_name: string | null; dni: string | null } | null
+  const prepagaInfo = alta.prepagas as { nombre: string } | null
   try {
-    const nombreCarpeta = nombreCarpetaAlta(lead?.first_name, lead?.last_name, alta.id)
-    const carpeta = await crearCarpetaDrive(prepaga.drive_folder_id, nombreCarpeta)
+    const carpeta = await asegurarRutaCarpetas(
+      raizAltas,
+      segmentosCarpetaAlta({
+        prepagaNombre: prepagaInfo?.nombre,
+        firstName: lead?.first_name,
+        lastName: lead?.last_name,
+        dni: lead?.dni,
+        altaId: alta.id,
+      })
+    )
     await supabase
       .from('altas')
       .update({ drive_folder_id: carpeta.id, drive_folder_url: carpeta.urlVista })
