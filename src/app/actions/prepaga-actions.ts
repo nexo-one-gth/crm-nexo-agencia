@@ -591,7 +591,21 @@ const IniciarAltaSchema = z.object({
   prepaga_id: z.string().uuid(),
   plan_id: z.string().uuid().optional(),
   tipo_alta: z.string().optional(),
+  // Opcional: si no viene, iniciarAlta() busca la cotización aprobada más
+  // reciente del lead para esa prepaga. Es el origen del prefill.
+  cotizacion_id: z.string().uuid().optional(),
 })
+
+// Normaliza una etiqueta de ítem a la misma clave que usa el motor de resumen
+// (alta-resumen.ts), para poder mapear datos del lead a ítems de la plantilla.
+function claveEtiqueta(etiqueta: string): string {
+  return etiqueta
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+}
 
 export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
   const supabase = await createClient()
@@ -630,17 +644,65 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
     plantilla = data
   }
 
+  // Cotización de origen. El alta nace de una cotización: sin este vínculo el
+  // asesor re-tipea plan, cuota y grupo familiar que ya cargó en el cotizador,
+  // y después no hay forma de responder "con qué números se vendió esto".
+  type CotizacionOrigen = {
+    id: string
+    plan_id: string | null
+    valor_final: number | null
+    valor_calculado: number | null
+    integrantes: unknown
+  }
+  let cotizacion: CotizacionOrigen | null = null
+
+  if (parsed.data.cotizacion_id) {
+    const { data } = await supabase
+      .from('lead_cotizaciones')
+      .select('id, plan_id, valor_final, valor_calculado, integrantes')
+      .eq('id', parsed.data.cotizacion_id)
+      .eq('lead_id', parsed.data.lead_id)
+      .maybeSingle()
+    cotizacion = data as CotizacionOrigen | null
+  } else {
+    const { data } = await supabase
+      .from('lead_cotizaciones')
+      .select('id, plan_id, valor_final, valor_calculado, integrantes')
+      .eq('lead_id', parsed.data.lead_id)
+      .eq('prepaga_id', parsed.data.prepaga_id)
+      .eq('estado', 'aprobada')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    cotizacion = data as CotizacionOrigen | null
+  }
+
+  const integrantesCotizacion = Array.isArray(cotizacion?.integrantes)
+    ? (cotizacion!.integrantes as { rol?: string; edad?: number }[])
+    : []
+
+  // La cuota solo se arrastra si es un número positivo. Ya pasó que el
+  // cotizador externo de Sancor guardara el SUBTOTAL (negativo) como
+  // valor_final: propagar eso al alta sería propagarlo a la comisión.
+  const cuotaCotizada =
+    cotizacion?.valor_final != null && cotizacion.valor_final > 0
+      ? cotizacion.valor_final
+      : null
+
   // Crear el alta
   const { data: alta, error: altaError } = await supabase
     .from('altas')
     .insert({
       lead_id: parsed.data.lead_id,
       prepaga_id: parsed.data.prepaga_id,
-      plan_id: parsed.data.plan_id ?? null,
+      plan_id: parsed.data.plan_id ?? cotizacion?.plan_id ?? null,
       asesor_id: user.id,
       plantilla_id: plantilla?.id ?? null,
       tipo_alta: parsed.data.tipo_alta ?? null,
       estado: 'en_proceso',
+      cotizacion_id: cotizacion?.id ?? null,
+      cuota: cuotaCotizada,
+      cantidad_capitas: integrantesCotizacion.length || null,
     })
     .select()
     .single()
@@ -650,7 +712,7 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
   // Copiar ítems de la plantilla (snapshot — incluye sección para filtrado en UI)
   if (plantilla?.checklist_plantilla_items?.length) {
     const items = plantilla.checklist_plantilla_items.map((item: {
-      id: string; etiqueta: string; tipo_dato: string; requerido: boolean; seccion?: string
+      id: string; etiqueta: string; tipo_dato: string; requerido: boolean; seccion?: string; momento?: string
     }) => ({
       alta_id: alta.id,
       plantilla_item_id: item.id,
@@ -658,25 +720,94 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
       tipo_dato: item.tipo_dato,
       requerido: item.requerido,
       seccion: item.seccion ?? 'documentos',
+      // `momento` decide si el ítem vence en el envío o después de la
+      // aprobación. Sin este snapshot, cambiar la plantilla mañana movería de
+      // etapa documentos de trámites ya en curso.
+      momento: item.momento ?? 'envio',
     }))
     await supabase.from('alta_items').insert(items)
   }
 
-  // Prefill: crear el integrante titular con los datos que ya tiene el lead
+  // Prefill del grupo familiar. Antes se creaba solo el titular con
+  // nombre/cuil/teléfono; todo lo demás lo re-tipeaba el asesor aunque el lead
+  // y la cotización ya lo tuvieran.
   const { data: leadInfo } = await supabase
     .from('leads')
-    .select('first_name, last_name, phone, cuil')
+    .select('first_name, last_name, phone, cuil, dni, email, sueldo_bruto, cuit_empleador, address_city, address_state')
     .eq('id', parsed.data.lead_id)
     .single()
 
-  await supabase.from('alta_integrantes').insert({
+  const domicilioLead =
+    [leadInfo?.address_city, leadInfo?.address_state].filter(Boolean).join(', ') || null
+
+  // El titular es siempre la fila 0. Del resto de las cápitas de la cotización
+  // solo conocemos rol y edad: se crean vacías para que el asesor complete
+  // DNI/CUIL, pero al menos la cantidad de integrantes ya queda bien.
+  type IntegranteInsert = {
+    alta_id: string
+    rol: string
+    orden: number
+    nombre?: string | null
+    dni?: string | null
+    cuil?: string | null
+    edad?: number | null
+    telefono?: string | null
+    email?: string | null
+    domicilio?: string | null
+  }
+
+  const filasIntegrantes: IntegranteInsert[] = [{
     alta_id: alta.id,
     rol: 'titular',
     orden: 0,
     nombre: [leadInfo?.first_name, leadInfo?.last_name].filter(Boolean).join(' ') || null,
+    dni: leadInfo?.dni ?? null,
     cuil: leadInfo?.cuil ?? null,
+    edad: integrantesCotizacion[0]?.edad ?? null,
     telefono: leadInfo?.phone ?? null,
+    email: leadInfo?.email ?? null,
+    domicilio: domicilioLead,
+  }]
+
+  integrantesCotizacion.slice(1).forEach((integ, idx) => {
+    filasIntegrantes.push({
+      alta_id: alta.id,
+      rol: integ.rol && integ.rol !== 'titular' ? integ.rol : 'adherente',
+      orden: idx + 1,
+      edad: integ.edad ?? null,
+    })
   })
+
+  await supabase.from('alta_integrantes').insert(filasIntegrantes)
+
+  // Sueldo bruto: dato comercial del alta que el lead ya podía traer.
+  if (leadInfo?.sueldo_bruto != null) {
+    await supabase.from('altas').update({ sueldo_bruto: leadInfo.sueldo_bruto }).eq('id', alta.id)
+  }
+
+  // Prefill de los ítems de sección `datos` que el lead ya puede responder.
+  // Best-effort y por etiqueta: si mañana se renombra un ítem en la plantilla,
+  // deja de prefillear (queda vacío para que lo cargue el asesor), no rompe.
+  const PREFILL_DATOS: Record<string, string | null | undefined> = {
+    cuit_empleador: leadInfo?.cuit_empleador,
+    provincia: leadInfo?.address_state,
+    localidad: leadInfo?.address_city,
+  }
+
+  const { data: itemsDatos } = await supabase
+    .from('alta_items')
+    .select('id, etiqueta')
+    .eq('alta_id', alta.id)
+    .eq('seccion', 'datos')
+
+  for (const item of itemsDatos ?? []) {
+    const valor = PREFILL_DATOS[claveEtiqueta(item.etiqueta)]
+    if (!valor) continue
+    await supabase
+      .from('alta_items')
+      .update({ valor_texto: valor, completado: true, completado_by: user.id, completado_at: new Date().toISOString() })
+      .eq('id', item.id)
+  }
 
   // Crear la carpeta del trámite en Drive (best-effort: si falla, el alta igual
   // se crea y se puede reintentar con crearCarpetaAlta).
@@ -705,12 +836,17 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
     console.error('[Alta] No se pudo crear la carpeta de Drive:', error)
   }
 
-  // Registrar actividad en el lead
+  // Registrar actividad. `alta_id` permite reconstruir el historial de ESTE
+  // trámite: sin él, dos altas del mismo lead (por ejemplo un reintento con
+  // otra prepaga tras un rechazo) quedan mezcladas en el mismo timeline.
   await supabase.from('activities').insert({
     lead_id: parsed.data.lead_id,
+    alta_id: alta.id,
     created_by: user.id,
     type: 'alta_iniciada',
-    description: `Alta iniciada en prepaga`,
+    description: cotizacion
+      ? 'Alta iniciada desde cotización aprobada'
+      : 'Alta iniciada sin cotización de origen',
   })
 
   revalidatePath('/altas')
@@ -772,6 +908,68 @@ export async function crearCarpetaAlta(altaId: string) {
   }
 }
 
+// Qué le falta a un alta para poder enviarse a procesar.
+// Espejo en TypeScript del trigger `altas_guard_estado` (migración
+// 20260827_altas_guard_estado.sql). La base es la que manda —esto existe para
+// poder MOSTRAR la lista antes de que el asesor apriete el botón, en vez de
+// devolverle una excepción de Postgres.
+export async function getFaltantesAlta(altaId: string): Promise<string[]> {
+  const supabase = await createClient()
+  const faltantes: string[] = []
+
+  const { data: alta } = await supabase
+    .from('altas')
+    .select('tipo_alta, cuota')
+    .eq('id', altaId)
+    .single()
+  if (!alta) return ['Alta no encontrada']
+
+  if (!alta.tipo_alta) faltantes.push('Tipo de alta (define la escala comisional)')
+  if (alta.cuota == null || alta.cuota <= 0) faltantes.push('Cuota del trámite')
+
+  // Solo los ítems del momento 'envio'. Los post-aprobación (por ejemplo la
+  // constancia de derivación de aportes) todavía no existen cuando el trámite
+  // se manda: exigirlos acá bloquearía el envío para siempre.
+  const { data: items } = await supabase
+    .from('alta_items')
+    .select('etiqueta, seccion')
+    .eq('alta_id', altaId)
+    .eq('requerido', true)
+    .eq('completado', false)
+    .eq('momento', 'envio')
+
+  for (const item of items ?? []) {
+    faltantes.push(item.seccion === 'datos' ? `Dato: ${item.etiqueta}` : `Documento: ${item.etiqueta}`)
+  }
+
+  const { data: titular } = await supabase
+    .from('alta_integrantes')
+    .select('dni, cuil')
+    .eq('alta_id', altaId)
+    .eq('rol', 'titular')
+    .maybeSingle()
+
+  if (!titular || (!titular.dni && !titular.cuil)) {
+    faltantes.push('DNI o CUIL del titular')
+  }
+
+  return faltantes
+}
+
+// Qué le falta a un alta ya aprobada para poder pasar a liquidación.
+// Espejo del trigger `comisiones_guard_post_aprobacion`.
+export async function getFaltantesLiquidacion(altaId: string): Promise<string[]> {
+  const supabase = await createClient()
+  const { data: items } = await supabase
+    .from('alta_items')
+    .select('etiqueta')
+    .eq('alta_id', altaId)
+    .eq('requerido', true)
+    .eq('completado', false)
+    .eq('momento', 'post_aprobacion')
+  return (items ?? []).map(i => i.etiqueta)
+}
+
 export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, observaciones?: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -793,6 +991,20 @@ export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, obser
     .single()
   if (!altaPrevia) return { error: 'Alta no encontrada' }
 
+  // Enviar a procesar deja de ser "marcar una opción": el trámite tiene que
+  // estar completo. El trigger de la base rechaza igual si esto se saltea; acá
+  // lo chequeamos antes para devolver una lista legible en vez de un error de
+  // Postgres. El admin puede forzar (mismo criterio que el trigger).
+  if (estado === 'enviada' && !esAdmin) {
+    const faltantes = await getFaltantesAlta(id)
+    if (faltantes.length > 0) {
+      return {
+        error: `No se puede enviar a procesar. Falta: ${faltantes.slice(0, 4).join(', ')}` +
+          (faltantes.length > 4 ? ` y ${faltantes.length - 4} más` : ''),
+      }
+    }
+  }
+
   const updateData: Record<string, unknown> = { estado }
   if (observaciones) updateData.observaciones = observaciones
   if (estado === 'enviada') updateData.enviada_at = new Date().toISOString()
@@ -810,6 +1022,7 @@ export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, obser
   }
   await supabase.from('activities').insert({
     lead_id: altaPrevia.lead_id,
+    alta_id: id,
     created_by: user.id,
     type: 'alta_estado_cambio',
     description: `Alta: ${ESTADO_LABELS[altaPrevia.estado] ?? altaPrevia.estado} → ${ESTADO_LABELS[estado] ?? estado}${observaciones ? ` (${observaciones})` : ''}`,
@@ -825,24 +1038,107 @@ export async function actualizarEstadoAlta(id: string, estado: EstadoAlta, obser
     if (!altaPrevia.tipo_alta) {
       await supabase.from('activities').insert({
         lead_id: altaPrevia.lead_id,
+        alta_id: id,
         created_by: user.id,
         type: 'comision_sin_regla',
         description: 'No se generó comisión: el alta no tiene tipo (particular / relación de dependencia / monotributo / PMO). Cargalo y volvé a aprobar.',
       })
     } else {
-      await generarComisionParaAlta({
-        altaId: id,
-        leadId: altaPrevia.lead_id,
-        prepagaId: altaPrevia.prepaga_id,
-        asesorId: altaPrevia.asesor_id,
-        segmento: altaPrevia.tipo_alta,
-      })
+      // La aprobación ya no devenga sola. En un desregulado de relación de
+      // dependencia la constancia de derivación de aportes recién se consigue
+      // después de aprobada: la comisión nace cuando el papel está y un admin
+      // pasa el trámite a liquidación (pasarALiquidacion).
+      const pendientes = await getFaltantesLiquidacion(id)
+      if (pendientes.length > 0) {
+        await supabase.from('activities').insert({
+          lead_id: altaPrevia.lead_id,
+          alta_id: id,
+          created_by: user.id,
+          type: 'comision_pendiente_documentacion',
+          description: `Alta aprobada. La comisión se genera al pasar a liquidación, cuando se adjunte: ${pendientes.join(', ')}.`,
+        })
+      } else {
+        await generarComisionParaAlta({
+          altaId: id,
+          leadId: altaPrevia.lead_id,
+          prepagaId: altaPrevia.prepaga_id,
+          asesorId: altaPrevia.asesor_id,
+          segmento: altaPrevia.tipo_alta,
+        })
+      }
     }
   }
 
   revalidatePath('/altas')
   revalidatePath(`/altas/${id}`)
   revalidatePath(`/leads/${altaPrevia.lead_id}`)
+  revalidatePath('/comisiones')
+  revalidatePath('/admin/comisiones')
+  return { success: true }
+}
+
+// Pase explícito a liquidación de un alta ya aprobada.
+// Es la acción que devenga la comisión. Adjuntar el documento puede hacerlo
+// cualquiera de los dos, pero habilitar la plata es del admin: si el pase fuera
+// automático al subir el archivo, el asesor decidiría solo cuándo se le liquida.
+export async function pasarALiquidacion(altaId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single()
+  if (!isAdminRole(profile?.role)) {
+    return { error: 'Solo un administrador puede pasar un alta a liquidación' }
+  }
+
+  const { data: alta } = await supabase
+    .from('altas')
+    .select('id, estado, lead_id, prepaga_id, asesor_id, tipo_alta')
+    .eq('id', altaId)
+    .single()
+  if (!alta) return { error: 'Alta no encontrada' }
+  if (alta.estado !== 'aprobada') {
+    return { error: 'El alta tiene que estar aprobada para pasar a liquidación' }
+  }
+  if (!alta.tipo_alta) {
+    return { error: 'Falta el tipo de alta: define la escala comisional' }
+  }
+
+  const pendientes = await getFaltantesLiquidacion(altaId)
+  if (pendientes.length > 0) {
+    return { error: `Falta adjuntar: ${pendientes.join(', ')}` }
+  }
+
+  // Idempotente: si la comisión ya existe no vuelve a generarla.
+  await generarComisionParaAlta({
+    altaId,
+    leadId: alta.lead_id,
+    prepagaId: alta.prepaga_id,
+    asesorId: alta.asesor_id,
+    segmento: alta.tipo_alta,
+  })
+
+  // generarComisionParaAlta() no lanza: cuando falta la regla comisional o el
+  // monto base, deja una actividad y vuelve sin insertar nada. Sin este chequeo
+  // el admin vería "pasó a liquidación" con cero comisiones generadas.
+  const { data: comisiones } = await supabase
+    .from('comisiones').select('id').eq('alta_id', altaId).limit(1)
+  if (!comisiones || comisiones.length === 0) {
+    return {
+      error: 'No se generó la comisión. Revisá el historial del lead: probablemente falte la regla comisional de la prepaga o el % del asesor.',
+    }
+  }
+
+  await supabase.from('activities').insert({
+    lead_id: alta.lead_id,
+    alta_id: altaId,
+    created_by: user.id,
+    type: 'alta_a_liquidacion',
+    description: 'Documentación posterior a la aprobación completa: el trámite pasó a liquidación.',
+  })
+
+  revalidatePath(`/altas/${altaId}`)
   revalidatePath('/comisiones')
   revalidatePath('/admin/comisiones')
   return { success: true }

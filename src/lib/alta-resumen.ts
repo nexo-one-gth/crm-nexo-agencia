@@ -46,7 +46,13 @@ export type DatoItem = {
 
 function money(n: number | null | undefined): string {
   if (n == null) return '—'
-  return '$' + new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(n)
+  // minimumFractionDigits: los documentos de la prepaga escriben los importes
+  // siempre con dos decimales ("$1.414.841,00"). Sin esto el sueldo bruto salía
+  // "$1.414.841" y no coincidía con el recibo.
+  return '$' + new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n)
 }
 
 function fecha(iso: string | null): string {
@@ -67,6 +73,28 @@ function labelRol(rol: string, indice: number): string {
 }
 
 const SEP = '-'.repeat(40)
+
+// Bloque de texto con los integrantes no-titular, en el formato que la agencia
+// ya usaba a mano. Devuelve '' si el trámite es de una sola cápita, para que el
+// template no quede con un separador colgado.
+function bloqueIntegrantes(otros: ResumenIntegrante[]): string {
+  if (otros.length === 0) return ''
+  const L: string[] = []
+  const contadores: Record<string, number> = {}
+  for (const integ of otros) {
+    contadores[integ.rol] = (contadores[integ.rol] ?? 0) + 1
+    L.push(SEP)
+    L.push(labelRol(integ.rol, contadores[integ.rol]))
+    L.push(`Nombre: ${(integ.nombre ?? '-').toUpperCase()}`)
+    if (integ.edad != null) L.push(`Edad: ${integ.edad}`)
+    if (integ.fecha_nac) L.push(`Fecha de Nacimiento: ${fecha(integ.fecha_nac)}`)
+    L.push(`DNI: ${integ.dni ?? '-'}`)
+    L.push(`Cuil: ${integ.cuil ?? '-'}`)
+    if (integ.peso_kg != null) L.push(`Peso: ${integ.peso_kg} KG`)
+    if (integ.altura_cm != null) L.push(`Altura: ${integ.altura_cm} CM`)
+  }
+  return L.join('\n')
+}
 
 // --- Motor de plantilla con interpolación {{variable}} ----------------------
 
@@ -99,6 +127,12 @@ function buildVars(
     titular_tel:       titular?.telefono ?? '',
     titular_email:     titular?.email ?? '',
     titular_fecha_nac: fecha(titular?.fecha_nac ?? null),
+
+    // El motor de templates no tiene bucles y la cantidad de integrantes es
+    // variable. `{{integrantes}}` resuelve el grupo familiar entero en una
+    // variable; las claves numeradas de abajo siguen disponibles para un
+    // template que quiera maquetar un integrante puntual.
+    integrantes: bloqueIntegrantes(otros),
   }
 
   // Integrantes no-titular: integrante_2_nombre, integrante_3_dni, etc.
@@ -114,8 +148,22 @@ function buildVars(
 
   // Datos específicos de la prepaga → clave: datos.<etiqueta_normalizada>
   for (const item of datosItems) {
-    const clave = 'datos.' + item.etiqueta.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_.]/g, '')
-    vars[clave] = item.valor_texto ?? item.valor_numero?.toString() ?? item.valor_fecha ?? ''
+    // NFD + strip de diacríticos: sin esto "Código postal" produce la clave
+    // `codigo_postal` sin la o acentuada -> `cdigo_postal`, y el template falla
+    // en silencio (interpolar() reemplaza por '' lo que no encuentra).
+    const clave = 'datos.' + item.etiqueta
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_.]/g, '')
+    // valor_fecha pasa por fecha(): sin esto un ítem de tipo `fecha` se
+    // interpolaba como '2026-09-01' en un resumen donde todo lo demás va
+    // dd/mm/aaaa.
+    vars[clave] =
+      item.valor_texto ??
+      item.valor_numero?.toString() ??
+      (item.valor_fecha ? fecha(item.valor_fecha) : '')
   }
 
   return vars
