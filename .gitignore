@@ -54,3 +54,11 @@ next-env.d.ts
 
 # Scratch: archivos a borrar a mano (el shell del bridge no puede hacer rm)
 _to_delete/
+
+# Skills de terceros instaladas localmente (impeccable): 3,4 MB duplicados en
+# dos carpetas. No las versionamos como el resto de .claude/skills/.
+.claude/skills/impeccable/
+.agents/
+
+# Config local de Codex
+.codex/
