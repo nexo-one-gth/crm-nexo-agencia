@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Check, Square, Upload, Calendar, Hash, Type, FileText } from 'lucide-react'
-import { completarItem, subirAdjuntoDrive } from '@/app/actions/prepaga-actions'
+import { completarItem, subirAdjunto, getUrlAdjunto } from '@/app/actions/prepaga-actions'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
@@ -82,12 +82,27 @@ function ItemRow({ item, altaId, onUpdate, isAdmin }: { item: Item; altaId: stri
     formData.append('item_id', item.id)
     formData.append('file', file)
 
-    const res = await subirAdjuntoDrive(formData)
+    const res = await subirAdjunto(formData)
     setSubiendo(false)
     if (res.error) { toast.error(res.error); return }
-    toast.success('Archivo subido a Drive')
+    toast.success('Archivo cargado')
     router.refresh()
     onUpdate()
+  }
+
+  // El adjunto vive en un bucket privado: para verlo hace falta un enlace
+  // firmado. La ventana se abre ANTES del await —si se abriera después, el
+  // navegador lo trata como popup y lo bloquea.
+  async function verArchivo() {
+    const ventana = window.open('', '_blank')
+    const res = await getUrlAdjunto(item.id)
+    if (res.error || !res.data) {
+      ventana?.close()
+      toast.error(res.error ?? 'No se pudo abrir el archivo')
+      return
+    }
+    if (ventana) ventana.location.href = res.data.url
+    else window.open(res.data.url, '_blank')
   }
 
   return (
@@ -133,16 +148,15 @@ function ItemRow({ item, altaId, onUpdate, isAdmin }: { item: Item; altaId: stri
               <div className="flex items-center gap-3">
                 {item.drive_file_url || item.archivo_path ? (
                   <>
-                    {item.drive_file_url && isAdmin ? (
-                      <a
-                        href={item.drive_file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    {item.archivo_path && isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={verArchivo}
                         className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:underline"
                       >
                         <Check className="w-3 h-3" />
-                        Ver en Drive
-                      </a>
+                        Ver documento
+                      </button>
                     ) : (
                       <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                         <Check className="w-3 h-3" />

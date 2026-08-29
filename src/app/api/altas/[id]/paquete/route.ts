@@ -2,19 +2,18 @@ import { NextResponse } from 'next/server'
 import JSZip from 'jszip'
 import { createClient } from '@/lib/supabase/server'
 import { isAdminRole } from '@/lib/supabase/assert-admin'
-import { descargarArchivoDrive, obtenerMetadataArchivo, sanitizarNombreCarpeta } from '@/lib/google-drive'
+import { sanitizarNombreCarpeta } from '@/lib/google-drive'
 import { generarResumenAlta } from '@/app/actions/prepaga-actions'
 
 /**
  * Paquete del trámite: un ZIP con la documentación y el resumen.
  *
  * Existe porque el admin manda el alta a la prepaga por mail o WhatsApp
- * adjuntando los archivos. Sin esto tendría que abrir la carpeta de Drive y
- * bajar los documentos de a uno.
+ * adjuntando los archivos. Sin esto tendría que bajar los documentos del CRM
+ * de a uno.
  *
  * Solo admin: es la documentación completa del socio (DNI, recibo de sueldo,
- * medio de pago) en un solo archivo. Un asesor no necesita descargarla junta,
- * y de hecho no tiene acceso a la unidad compartida donde vive.
+ * medio de pago) en un solo archivo. Un asesor no necesita descargarla junta.
  */
 // JSZip no marca los nombres de entrada como UTF-8, así que un archivo llamado
 // "Constancia de derivación" se abre como "Constancia de derivaciÃ³n" en el
@@ -50,7 +49,7 @@ export async function GET(
       id,
       prepagas(nombre),
       leads(first_name, last_name, dni),
-      alta_items(etiqueta, drive_file_id, momento, requerido)
+      alta_items(etiqueta, archivo_path, momento, requerido)
     `)
     .eq('id', id)
     .single()
@@ -60,7 +59,7 @@ export async function GET(
   const lead = alta.leads as { first_name: string; last_name: string | null; dni: string | null } | null
   const prepaga = alta.prepagas as { nombre: string } | null
   const items = (alta.alta_items ?? []) as {
-    etiqueta: string; drive_file_id: string | null; momento: string; requerido: boolean
+    etiqueta: string; archivo_path: string | null; momento: string; requerido: boolean
   }[]
 
   const zip = new JSZip()
@@ -74,37 +73,44 @@ export async function GET(
   }
 
   const fallidos: string[] = []
-  const conArchivo = items.filter(i => i.drive_file_id)
+  const conArchivo = items.filter(i => i.archivo_path)
 
+  // La descarga usa el cliente del usuario: la policy de SELECT del bucket
+  // vuelve a decidir. Un admin que no puede ver el alta tampoco baja sus
+  // archivos, sin que este código tenga que repetir la regla.
   for (const item of conArchivo) {
-    try {
-      const [bytes, meta] = await Promise.all([
-        descargarArchivoDrive(item.drive_file_id!),
-        obtenerMetadataArchivo(item.drive_file_id!).catch(() => null),
-      ])
-      // La extensión sale del nombre real en Drive: en la base guardamos el id
-      // y la etiqueta del ítem, no el nombre del archivo.
-      const extension = meta?.nombre?.includes('.')
-        ? meta.nombre.slice(meta.nombre.lastIndexOf('.'))
-        : ''
-      const prefijo = item.momento === 'post_aprobacion' ? 'POSTERIOR - ' : ''
-      zip.file(`${prefijo}${nombreEnZip(item.etiqueta)}${extension}`, bytes)
-    } catch {
+    const { data: blob, error } = await supabase.storage
+      .from('altas-adjuntos')
+      .download(item.archivo_path!)
+
+    if (error || !blob) {
       fallidos.push(item.etiqueta)
+      continue
     }
+
+    // La extensión sale del path: lo que se guarda en la base es
+    // <alta_id>/<item_id>.<ext>, no el nombre original del archivo.
+    const extension = item.archivo_path!.includes('.')
+      ? item.archivo_path!.slice(item.archivo_path!.lastIndexOf('.'))
+      : ''
+    const prefijo = item.momento === 'post_aprobacion' ? 'POSTERIOR - ' : ''
+    zip.file(
+      `${prefijo}${nombreEnZip(item.etiqueta)}${extension}`,
+      Buffer.from(await blob.arrayBuffer())
+    )
   }
 
   // Faltantes y fallidos van dentro del ZIP, no en un error: el admin muchas
   // veces necesita mandar lo que hay. Mejor que sepa qué le falta a que crea
   // que el paquete está completo.
-  const pendientes = items.filter(i => i.requerido && !i.drive_file_id).map(i => i.etiqueta)
+  const pendientes = items.filter(i => i.requerido && !i.archivo_path).map(i => i.etiqueta)
   if (pendientes.length > 0 || fallidos.length > 0) {
     const lineas: string[] = []
     if (pendientes.length > 0) {
       lineas.push('Documentos requeridos sin cargar en el CRM:', ...pendientes.map(e => `  - ${e}`), '')
     }
     if (fallidos.length > 0) {
-      lineas.push('Documentos que no se pudieron descargar de Drive:', ...fallidos.map(e => `  - ${e}`))
+      lineas.push('Documentos que no se pudieron descargar:', ...fallidos.map(e => `  - ${e}`))
     }
     zip.file('_FALTANTES.txt', lineas.join('\n'))
   }
