@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -43,6 +43,13 @@ export type Database = {
           type?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "activities_alta_id_fkey"
+            columns: ["alta_id"]
+            isOneToOne: false
+            referencedRelation: "altas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "activities_lead_id_fkey"
             columns: ["lead_id"]
@@ -170,10 +177,10 @@ export type Database = {
           drive_file_url: string | null
           etiqueta: string
           id: string
+          momento: string
           plantilla_item_id: string | null
           requerido: boolean
           seccion: string
-          momento: string
           tipo_dato: string
           valor_fecha: string | null
           valor_numero: number | null
@@ -189,10 +196,10 @@ export type Database = {
           drive_file_url?: string | null
           etiqueta: string
           id?: string
+          momento?: string
           plantilla_item_id?: string | null
           requerido?: boolean
           seccion?: string
-          momento?: string
           tipo_dato: string
           valor_fecha?: string | null
           valor_numero?: number | null
@@ -208,10 +215,10 @@ export type Database = {
           drive_file_url?: string | null
           etiqueta?: string
           id?: string
+          momento?: string
           plantilla_item_id?: string | null
           requerido?: boolean
           seccion?: string
-          momento?: string
           tipo_dato?: string
           valor_fecha?: string | null
           valor_numero?: number | null
@@ -246,9 +253,9 @@ export type Database = {
           aportes_promedio: number | null
           asesor_id: string
           cantidad_capitas: number | null
+          cotizacion_id: string | null
           created_at: string
           cuota: number | null
-          cotizacion_id: string | null
           drive_folder_id: string | null
           drive_folder_url: string | null
           enviada_at: string | null
@@ -273,9 +280,9 @@ export type Database = {
           aportes_promedio?: number | null
           asesor_id: string
           cantidad_capitas?: number | null
+          cotizacion_id?: string | null
           created_at?: string
           cuota?: number | null
-          cotizacion_id?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
           enviada_at?: string | null
@@ -300,9 +307,9 @@ export type Database = {
           aportes_promedio?: number | null
           asesor_id?: string
           cantidad_capitas?: number | null
+          cotizacion_id?: string | null
           created_at?: string
           cuota?: number | null
-          cotizacion_id?: string | null
           drive_folder_id?: string | null
           drive_folder_url?: string | null
           enviada_at?: string | null
@@ -329,6 +336,13 @@ export type Database = {
             columns: ["asesor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "altas_cotizacion_id_fkey"
+            columns: ["cotizacion_id"]
+            isOneToOne: false
+            referencedRelation: "lead_cotizaciones"
             referencedColumns: ["id"]
           },
           {
@@ -454,31 +468,31 @@ export type Database = {
         Row: {
           etiqueta: string
           id: string
+          momento: string
           orden: number
           plantilla_id: string
           requerido: boolean
           seccion: string
-          momento: string
           tipo_dato: string
         }
         Insert: {
           etiqueta: string
           id?: string
+          momento?: string
           orden?: number
           plantilla_id: string
           requerido?: boolean
           seccion?: string
-          momento?: string
           tipo_dato?: string
         }
         Update: {
           etiqueta?: string
           id?: string
+          momento?: string
           orden?: number
           plantilla_id?: string
           requerido?: boolean
           seccion?: string
-          momento?: string
           tipo_dato?: string
         }
         Relationships: [
@@ -1047,6 +1061,7 @@ export type Database = {
           obra_social: string | null
           observaciones_cotizacion: string | null
           origen: string | null
+          pendiente_reparto: boolean
           phone: string | null
           pipeline_stage_id: string | null
           plan: string | null
@@ -1091,6 +1106,7 @@ export type Database = {
           obra_social?: string | null
           observaciones_cotizacion?: string | null
           origen?: string | null
+          pendiente_reparto?: boolean
           phone?: string | null
           pipeline_stage_id?: string | null
           plan?: string | null
@@ -1135,6 +1151,7 @@ export type Database = {
           obra_social?: string | null
           observaciones_cotizacion?: string | null
           origen?: string | null
+          pendiente_reparto?: boolean
           phone?: string | null
           pipeline_stage_id?: string | null
           plan?: string | null
@@ -1197,6 +1214,70 @@ export type Database = {
           reason?: string
         }
         Relationships: []
+      }
+      notificaciones: {
+        Row: {
+          cantidad: number
+          created_at: string
+          cuerpo: string | null
+          destinatario_id: string
+          id: string
+          lead_id: string | null
+          leida_at: string | null
+          link: string | null
+          origen_id: string | null
+          tipo: string
+          titulo: string
+        }
+        Insert: {
+          cantidad?: number
+          created_at?: string
+          cuerpo?: string | null
+          destinatario_id: string
+          id?: string
+          lead_id?: string | null
+          leida_at?: string | null
+          link?: string | null
+          origen_id?: string | null
+          tipo: string
+          titulo: string
+        }
+        Update: {
+          cantidad?: number
+          created_at?: string
+          cuerpo?: string | null
+          destinatario_id?: string
+          id?: string
+          lead_id?: string | null
+          leida_at?: string | null
+          link?: string | null
+          origen_id?: string | null
+          tipo?: string
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notificaciones_destinatario_id_fkey"
+            columns: ["destinatario_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notificaciones_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notificaciones_origen_id_fkey"
+            columns: ["origen_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pipeline_stages: {
         Row: {

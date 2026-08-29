@@ -103,6 +103,12 @@ SUPABASE_SERVICE_ROLE_KEY=    # NUNCA exponer al cliente
 GOOGLE_SERVICE_ACCOUNT_EMAIL=
 GOOGLE_PRIVATE_KEY=
 GOOGLE_DRIVE_ROOT_FOLDER_ID=
+
+# Notificaciones por email (opcional). Sin estas dos, la campanita in-app
+# funciona igual y el envío de mail se saltea sin error.
+RESEND_API_KEY=
+RESEND_FROM=            # ej: Nexo Salud <avisos@tudominio.com>, dominio verificado en Resend
+NEXT_PUBLIC_APP_URL=    # base para los links del email; en Vercel cae a VERCEL_URL
 ```
 
 ### Comandos
