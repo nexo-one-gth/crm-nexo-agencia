@@ -8,6 +8,8 @@ import Image from "next/image";
 import { Toaster } from "sonner";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { BottomNav } from "@/components/ui/BottomNav";
+import { CampanaNotificaciones } from "@/components/ui/CampanaNotificaciones";
+import { getMisNotificaciones, type NotificacionUI } from "@/app/actions/notificaciones-actions";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-body" });
 const plusJakarta = Plus_Jakarta_Sans({
@@ -44,8 +46,12 @@ export default async function RootLayout({
 
   let isAdmin = false
   let isSupervisor = false
+  // Se resuelve en el server para que la campanita pinte el badge en el primer
+  // render, sin un fetch extra desde el cliente en cada navegación.
+  let notificaciones: NotificacionUI[] = []
 
   if (user) {
+    notificaciones = (await getMisNotificaciones()).data
     const { data: profile } = await supabase
       .from('profiles')
       .select('first_name, last_name, role')
@@ -93,6 +99,7 @@ export default async function RootLayout({
                     </span>
                   </div>
                 )}
+                {user && <CampanaNotificaciones userId={user.id} inicial={notificaciones} />}
                 <Link
                   href="/settings"
                   className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-600 dark:text-slate-400"
