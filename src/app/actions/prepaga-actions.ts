@@ -6,8 +6,7 @@ import { assertAdmin, isAdminRole } from '@/lib/supabase/assert-admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import {
   listarContenidoCarpeta,
-  crearCarpetaDrive,
-  subirArchivoDrive,
+  asegurarRutaCarpetas,
   guardarDocResumen,
   type DriveItem,
 } from '@/lib/google-drive'
@@ -445,7 +444,7 @@ export async function getAltas() {
       prepaga_planes(nombre),
       leads(first_name, last_name, phone),
       profiles!altas_asesor_id_fkey(first_name, last_name),
-      alta_items(id, requerido, completado)
+      alta_items(id, requerido, completado, momento)
     `)
     .order('created_at', { ascending: false })
 
@@ -540,11 +539,12 @@ export async function getAltasTablero(): Promise<AltasTablero> {
     prepagas: { nombre: string } | null
     prepaga_planes: { nombre: string } | null
     profiles: { first_name: string | null; last_name: string | null } | null
-    alta_items: { requerido: boolean; completado: boolean }[] | null
+    alta_items: { requerido: boolean; completado: boolean; momento: string }[] | null
   }
 
   const rows: AltaTableroRow[] = (altas as unknown as AltaCruda[]).map(a => {
     const items = a.alta_items ?? []
+    const itemsEnvio = items.filter(i => (i.momento ?? 'envio') === 'envio')
     const jefe = lider.get(a.asesor_id) ?? null
 
     return {
@@ -560,8 +560,11 @@ export async function getAltasTablero(): Promise<AltasTablero> {
       lead_nombre: nombreCompleto(a.leads) || 'Sin nombre',
       prepaga_nombre: a.prepagas?.nombre ?? '—',
       plan_nombre: a.prepaga_planes?.nombre ?? null,
-      requeridos: items.filter(i => i.requerido).length,
-      completados: items.filter(i => i.requerido && i.completado).length,
+      // Solo los ítems del envío. Contar también los post-aprobación dejaría un
+      // trámite listo para mandar mostrándose 5/6 en el tablero, y no habría
+      // forma de completarlo antes de que el admin lo apruebe.
+      requeridos: itemsEnvio.filter(i => i.requerido).length,
+      completados: itemsEnvio.filter(i => i.requerido && i.completado).length,
     }
   })
 
@@ -812,19 +815,24 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
   // Crear la carpeta del trámite en Drive (best-effort: si falla, el alta igual
   // se crea y se puede reintentar con crearCarpetaAlta).
   try {
-    const { data: prepaga } = await supabase
-      .from('prepagas')
-      .select('drive_folder_id')
-      .eq('id', parsed.data.prepaga_id)
-      .single()
+    const raizAltas = process.env.GOOGLE_DRIVE_ALTAS_ROOT_ID
+    if (raizAltas) {
+      const { data: prepaga } = await supabase
+        .from('prepagas')
+        .select('nombre')
+        .eq('id', parsed.data.prepaga_id)
+        .single()
 
-    if (prepaga?.drive_folder_id) {
-      const nombreCarpeta = nombreCarpetaAlta(
-        leadInfo?.first_name,
-        leadInfo?.last_name,
-        alta.id
+      const carpeta = await asegurarRutaCarpetas(
+        raizAltas,
+        segmentosCarpetaAlta({
+          prepagaNombre: prepaga?.nombre,
+          firstName: leadInfo?.first_name,
+          lastName: leadInfo?.last_name,
+          dni: leadInfo?.dni,
+          altaId: alta.id,
+        })
       )
-      const carpeta = await crearCarpetaDrive(prepaga.drive_folder_id, nombreCarpeta)
       await supabase
         .from('altas')
         .update({ drive_folder_id: carpeta.id, drive_folder_url: carpeta.urlVista })
@@ -854,19 +862,35 @@ export async function iniciarAlta(formData: z.infer<typeof IniciarAltaSchema>) {
   return { data: alta }
 }
 
-// Nombre de la carpeta del trámite: "Apellido Nombre - AAAA-MM-DD".
-// Si no hay nombre, usa el id corto del alta como fallback.
-function nombreCarpetaAlta(
-  firstName?: string | null,
-  lastName?: string | null,
-  altaId?: string
-): string {
-  const fecha = new Date().toISOString().slice(0, 10)
-  const partes = [lastName, firstName].filter(Boolean).join(' ').trim()
-  const base = partes || `Alta ${altaId?.slice(0, 8) ?? ''}`.trim()
-  // Sanitizar caracteres problemáticos para nombres de carpeta
-  const limpio = base.replace(/[\\/:*?"<>|]/g, '').trim()
-  return `${limpio} - ${fecha}`
+// Ruta del trámite dentro de la unidad compartida de altas:
+//
+//   2026-08 / SANCOR SALUD / TELLERIA CLOSSA NAZARENO IVAN - 43268808 - 3df0b2b3
+//
+// Tres decisiones, contra el "Apellido Nombre - fecha" plano que había antes:
+//   - el mes arriba mantiene cada carpeta chica; Drive se vuelve incómodo
+//     pasadas unas cientos de entradas en un mismo nivel;
+//   - el DNI porque dos socios se pueden llamar igual;
+//   - el id corto del alta porque un mismo socio puede tener dos trámites (un
+//     rechazo y un reintento con otra prepaga) y las carpetas colisionarían.
+//
+// Y sobre todo: cuelga de GOOGLE_DRIVE_ALTAS_ROOT_ID, NO de la carpeta de la
+// prepaga. Ahí adentro está el material comercial que los asesores navegan
+// desde /recursos: dejar los trámites en el mismo lugar significaba que
+// cualquier asesor con la prepaga asignada veía los DNI y los recibos de sueldo
+// de los socios de todos los demás.
+function segmentosCarpetaAlta(params: {
+  prepagaNombre?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  dni?: string | null
+  altaId: string
+}): string[] {
+  const mes = new Date().toISOString().slice(0, 7) // AAAA-MM
+  const nombre = [params.lastName, params.firstName].filter(Boolean).join(' ').trim()
+  const carpetaSocio = [nombre || 'Sin nombre', params.dni, params.altaId.slice(0, 8)]
+    .filter(Boolean)
+    .join(' - ')
+  return [mes, params.prepagaNombre || 'Sin prepaga', carpetaSocio]
 }
 
 // (Re)crea la carpeta de Drive de un alta que no la tenga (o falló al iniciar).
@@ -877,25 +901,30 @@ export async function crearCarpetaAlta(altaId: string) {
 
   const { data: alta } = await supabase
     .from('altas')
-    .select('id, prepaga_id, drive_folder_id, leads(first_name, last_name)')
+    .select('id, prepaga_id, drive_folder_id, prepagas(nombre), leads(first_name, last_name, dni)')
     .eq('id', altaId)
     .single()
   if (!alta) return { error: 'Alta no encontrada' }
   if (alta.drive_folder_id) return { error: 'La carpeta ya existe' }
 
-  const { data: prepaga } = await supabase
-    .from('prepagas')
-    .select('drive_folder_id')
-    .eq('id', alta.prepaga_id)
-    .single()
-  if (!prepaga?.drive_folder_id) {
-    return { error: 'La prepaga no tiene carpeta de Drive configurada' }
+  const raizAltas = process.env.GOOGLE_DRIVE_ALTAS_ROOT_ID
+  if (!raizAltas) {
+    return { error: 'Falta configurar GOOGLE_DRIVE_ALTAS_ROOT_ID (unidad compartida de altas)' }
   }
 
-  const lead = alta.leads as { first_name: string; last_name: string | null } | null
+  const lead = alta.leads as { first_name: string; last_name: string | null; dni: string | null } | null
+  const prepagaInfo = alta.prepagas as { nombre: string } | null
   try {
-    const nombreCarpeta = nombreCarpetaAlta(lead?.first_name, lead?.last_name, alta.id)
-    const carpeta = await crearCarpetaDrive(prepaga.drive_folder_id, nombreCarpeta)
+    const carpeta = await asegurarRutaCarpetas(
+      raizAltas,
+      segmentosCarpetaAlta({
+        prepagaNombre: prepagaInfo?.nombre,
+        firstName: lead?.first_name,
+        lastName: lead?.last_name,
+        dni: lead?.dni,
+        altaId: alta.id,
+      })
+    )
     await supabase
       .from('altas')
       .update({ drive_folder_id: carpeta.id, drive_folder_url: carpeta.urlVista })
@@ -1637,39 +1666,38 @@ export async function completarItem(params: {
   return { success: true }
 }
 
-export async function subirAdjunto(params: {
-  alta_id: string
-  item_id: string
-  archivo_path: string
-}) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'No autenticado' }
+// ---------------------------------------------------------------------------
+// ALTAS — adjuntos del trámite (Supabase Storage)
+// ---------------------------------------------------------------------------
+// Los documentos viven en el bucket privado `altas-adjuntos`, no en Drive.
+// El aislamiento entre asesores lo resuelven las policies del bucket
+// (20260829_1_storage_altas_politicas.sql), que usan el mismo
+// auth_asesores_visibles() que el resto del CRM. Drive no puede expresar eso:
+// sus permisos no saben nada del RLS, así que cualquiera con acceso a la
+// carpeta veía los DNI y recibos de sueldo de los socios de todos.
+//
+// Convención de path: <alta_id>/<item_id>.<ext>
+// El primer segmento es de donde las policies sacan el permiso. Cambiarlo
+// implica cambiar las cuatro policies.
 
-  const { error } = await supabase
-    .from('alta_items')
-    .update({
-      completado: true,
-      archivo_path: params.archivo_path,
-      completado_by: user.id,
-      completado_at: new Date().toISOString(),
-    })
-    .eq('id', params.item_id)
-    .eq('alta_id', params.alta_id)
+const BUCKET_ADJUNTOS = 'altas-adjuntos'
+const MIME_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 
-  if (error) return { error: error.message }
-  revalidatePath(`/altas/${params.alta_id}`)
-  return { success: true }
+// 10 MB es el límite real del bucket. Antes acá decía 15: un archivo de 12 MB
+// pasaba esta validación y lo rechazaba Storage después, con un error interno
+// en vez de un mensaje entendible.
+const MAX_BYTES = 10 * 1024 * 1024
+
+// La extensión sale del MIME, no del nombre que traiga el archivo: los asesores
+// suben fotos desde el celular y el nombre puede venir sin extensión.
+const EXT_POR_MIME: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
 }
 
-// ---------------------------------------------------------------------------
-// ALTAS — subida de adjuntos a la carpeta de Drive del trámite
-// ---------------------------------------------------------------------------
-
-const MIME_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
-const MAX_BYTES = 15 * 1024 * 1024 // 15 MB
-
-export async function subirAdjuntoDrive(formData: FormData) {
+export async function subirAdjunto(formData: FormData) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
@@ -1681,58 +1709,77 @@ export async function subirAdjuntoDrive(formData: FormData) {
   if (!altaId || !itemId) return { error: 'Faltan datos del adjunto' }
   if (!(file instanceof File)) return { error: 'Archivo inválido' }
   if (file.size === 0) return { error: 'El archivo está vacío' }
-  if (file.size > MAX_BYTES) return { error: 'El archivo supera los 15 MB' }
-  if (file.type && !MIME_PERMITIDOS.includes(file.type)) {
+  if (file.size > MAX_BYTES) return { error: 'El archivo supera los 10 MB' }
+  if (!MIME_PERMITIDOS.includes(file.type)) {
     return { error: 'Formato no permitido (PDF, JPG, PNG o WEBP)' }
   }
 
-  // Buscar la carpeta de Drive del alta y la etiqueta del ítem
-  const { data: alta } = await supabase
-    .from('altas')
-    .select('id, drive_folder_id, asesor_id')
-    .eq('id', altaId)
-    .single()
-  if (!alta) return { error: 'Alta no encontrada' }
-  if (!alta.drive_folder_id) {
-    return { error: 'El alta no tiene carpeta en Drive. Creala primero desde el detalle del alta.' }
+  // Solo se verifica que el ítem pertenezca a esta alta. Quién puede escribir
+  // lo decide la policy del bucket, no un chequeo acá.
+  const { data: item } = await supabase
+    .from('alta_items')
+    .select('id, archivo_path')
+    .eq('id', itemId)
+    .eq('alta_id', altaId)
+    .maybeSingle()
+  if (!item) return { error: 'Ítem no encontrado' }
+
+  const path = `${altaId}/${itemId}${EXT_POR_MIME[file.type] ?? ''}`
+
+  // Si el reemplazo cambia de extensión (una foto .jpg por un .pdf), el objeto
+  // viejo tiene otro nombre y el upsert no lo pisa: quedarían dos archivos para
+  // el mismo ítem y el ZIP se llevaría el que no es.
+  if (item.archivo_path && item.archivo_path !== path) {
+    await supabase.storage.from(BUCKET_ADJUNTOS).remove([item.archivo_path])
   }
+
+  const { error: errorSubida } = await supabase.storage
+    .from(BUCKET_ADJUNTOS)
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (errorSubida) {
+    console.error('[Alta] Error subiendo adjunto:', errorSubida)
+    return { error: 'No se pudo subir el archivo' }
+  }
+
+  const { error } = await supabase
+    .from('alta_items')
+    .update({
+      completado: true,
+      archivo_path: path,
+      completado_by: user.id,
+      completado_at: new Date().toISOString(),
+    })
+    .eq('id', itemId)
+    .eq('alta_id', altaId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/altas/${altaId}`)
+  return { success: true }
+}
+
+// Enlace firmado y de vida corta para abrir un adjunto. Se genera con el
+// cliente del usuario, así que la policy de SELECT del bucket es la que decide
+// si sale o no: no hace falta repetir la regla acá.
+export async function getUrlAdjunto(itemId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
 
   const { data: item } = await supabase
     .from('alta_items')
-    .select('id, etiqueta')
+    .select('archivo_path')
     .eq('id', itemId)
-    .eq('alta_id', altaId)
-    .single()
-  if (!item) return { error: 'Ítem no encontrado' }
+    .maybeSingle()
+  if (!item?.archivo_path) return { error: 'El ítem no tiene archivo cargado' }
 
-  try {
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const ext = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : ''
-    const etiquetaLimpia = item.etiqueta.replace(/[\\/:*?"<>|]/g, '').trim()
-    const nombreArchivo = `${etiquetaLimpia}${ext}`
-    const mime = file.type || 'application/octet-stream'
+  const { data, error } = await supabase.storage
+    .from(BUCKET_ADJUNTOS)
+    .createSignedUrl(item.archivo_path, 120)
 
-    const subido = await subirArchivoDrive(alta.drive_folder_id, buffer, nombreArchivo, mime)
-
-    const { error } = await supabase
-      .from('alta_items')
-      .update({
-        completado: true,
-        drive_file_id: subido.id,
-        drive_file_url: subido.urlVista,
-        completado_by: user.id,
-        completado_at: new Date().toISOString(),
-      })
-      .eq('id', itemId)
-      .eq('alta_id', altaId)
-
-    if (error) return { error: error.message }
-    revalidatePath(`/altas/${altaId}`)
-    return { data: { url: subido.urlVista } }
-  } catch (err) {
-    console.error('[Alta] Error subiendo a Drive:', err)
-    return { error: 'No se pudo subir el archivo a Drive' }
-  }
+  if (error || !data) return { error: 'No se pudo generar el enlace' }
+  return { data: { url: data.signedUrl } }
 }
 
 // ---------------------------------------------------------------------------

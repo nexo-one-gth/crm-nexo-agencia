@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Check, Square, Upload, Calendar, Hash, Type, FileText } from 'lucide-react'
-import { completarItem, subirAdjuntoDrive } from '@/app/actions/prepaga-actions'
+import { completarItem, subirAdjunto, getUrlAdjunto } from '@/app/actions/prepaga-actions'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +25,12 @@ interface ChecklistInteractivoProps {
   items: Item[]
   /** Título de la sección. Por defecto "Documentación". */
   titulo?: string
+  /**
+   * Solo los admins son miembros de la unidad compartida de altas. Al asesor
+   * mostrarle el link de Drive le daría un 403 de Google, así que ve que el
+   * archivo está cargado y nada más.
+   */
+  isAdmin?: boolean
 }
 
 const TIPO_ICONO: Record<string, React.ElementType> = {
@@ -35,7 +41,7 @@ const TIPO_ICONO: Record<string, React.ElementType> = {
   numero: Hash,
 }
 
-function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpdate: () => void }) {
+function ItemRow({ item, altaId, onUpdate, isAdmin }: { item: Item; altaId: string; onUpdate: () => void; isAdmin: boolean }) {
   const [isPending, startTransition] = useTransition()
   const [valor, setValor] = useState(item.valor_texto ?? item.valor_fecha ?? String(item.valor_numero ?? ''))
   const [editando, setEditando] = useState(false)
@@ -76,12 +82,27 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
     formData.append('item_id', item.id)
     formData.append('file', file)
 
-    const res = await subirAdjuntoDrive(formData)
+    const res = await subirAdjunto(formData)
     setSubiendo(false)
     if (res.error) { toast.error(res.error); return }
-    toast.success('Archivo subido a Drive')
+    toast.success('Archivo cargado')
     router.refresh()
     onUpdate()
+  }
+
+  // El adjunto vive en un bucket privado: para verlo hace falta un enlace
+  // firmado. La ventana se abre ANTES del await —si se abriera después, el
+  // navegador lo trata como popup y lo bloquea.
+  async function verArchivo() {
+    const ventana = window.open('', '_blank')
+    const res = await getUrlAdjunto(item.id)
+    if (res.error || !res.data) {
+      ventana?.close()
+      toast.error(res.error ?? 'No se pudo abrir el archivo')
+      return
+    }
+    if (ventana) ventana.location.href = res.data.url
+    else window.open(res.data.url, '_blank')
   }
 
   return (
@@ -127,16 +148,15 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
               <div className="flex items-center gap-3">
                 {item.drive_file_url || item.archivo_path ? (
                   <>
-                    {item.drive_file_url ? (
-                      <a
-                        href={item.drive_file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    {item.archivo_path && isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={verArchivo}
                         className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 hover:underline"
                       >
                         <Check className="w-3 h-3" />
-                        Ver en Drive
-                      </a>
+                        Ver documento
+                      </button>
                     ) : (
                       <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                         <Check className="w-3 h-3" />
@@ -210,7 +230,7 @@ function ItemRow({ item, altaId, onUpdate }: { item: Item; altaId: string; onUpd
   )
 }
 
-export function ChecklistInteractivo({ altaId, items, titulo = 'Documentación' }: ChecklistInteractivoProps) {
+export function ChecklistInteractivo({ altaId, items, titulo = 'Documentación', isAdmin = false }: ChecklistInteractivoProps) {
   const [, forceUpdate] = useState(0)
 
   const requeridos = items.filter(i => i.requerido)
@@ -224,7 +244,7 @@ export function ChecklistInteractivo({ altaId, items, titulo = 'Documentación' 
         <div className="space-y-2">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Requeridos</p>
           {requeridos.map(item => (
-            <ItemRow key={item.id} item={item} altaId={altaId} onUpdate={() => forceUpdate(n => n + 1)} />
+            <ItemRow key={item.id} item={item} altaId={altaId} isAdmin={isAdmin} onUpdate={() => forceUpdate(n => n + 1)} />
           ))}
         </div>
       )}
@@ -233,7 +253,7 @@ export function ChecklistInteractivo({ altaId, items, titulo = 'Documentación' 
         <div className="space-y-2">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Opcionales</p>
           {opcionales.map(item => (
-            <ItemRow key={item.id} item={item} altaId={altaId} onUpdate={() => forceUpdate(n => n + 1)} />
+            <ItemRow key={item.id} item={item} altaId={altaId} isAdmin={isAdmin} onUpdate={() => forceUpdate(n => n + 1)} />
           ))}
         </div>
       )}

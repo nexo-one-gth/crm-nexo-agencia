@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { assertAdmin, assertSupervisorOrAdmin, isAdminRole, isSupervisorRole } from '@/lib/supabase/assert-admin'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
+import { notificarLeadsAsignados } from '@/lib/notificaciones/crear'
 
 export async function getAdvisorLeads() {
     const supabase = await createClient()
@@ -378,7 +379,20 @@ export async function assignLeadsToAdvisor(leadIds: string[], advisorId: string)
         if (campaignError) console.error('Error attaching campaign to leads:', campaignError)
     }
 
+    // Aviso al destinatario. Un solo aviso por lote, y distingue las dos cosas
+    // que este mismo update puede significar: leads para trabajar, o un lote
+    // que aterriza en el buzón de /equipo esperando reparto (`quedaPendiente`).
+    // Se espera, pero `notificarLeadsAsignados` no tira nunca: si el insert o
+    // el email fallan, la asignacion ya esta hecha y no se revierte por un aviso.
+    await notificarLeadsAsignados({
+        destinatarioId: advisorId,
+        cantidad: leadIds.length,
+        paraRepartir: quedaPendiente,
+        asignadorId: user.id,
+    })
+
     revalidatePath('/funnel')
+    revalidatePath('/equipo')
     return { success: true }
 }
 

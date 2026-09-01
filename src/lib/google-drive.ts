@@ -79,6 +79,35 @@ export async function crearCarpetaDrive(
   }
 }
 
+// Saca los caracteres que Drive y los sistemas de archivos no toleran, y
+// normaliza espacios. No saca acentos: los nombres de carpeta los lee gente.
+export function sanitizarNombreCarpeta(nombre: string): string {
+  return nombre.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim()
+}
+
+// Crea (o reutiliza) una ruta de carpetas anidadas bajo `rootId` y devuelve la
+// última. Cada nivel pasa por crearCarpetaDrive(), que es get-or-create, así
+// que llamar dos veces con la misma ruta devuelve la misma carpeta.
+//
+// Secuencial a propósito: cada nivel necesita el id del anterior. Son 3 llamadas
+// por alta, y solo la primera vez que se usa un mes o una prepaga crea algo.
+export async function asegurarRutaCarpetas(
+  rootId: string,
+  segmentos: string[]
+): Promise<DriveArchivo> {
+  let actual: DriveArchivo = {
+    id: rootId,
+    nombre: '',
+    urlVista: `https://drive.google.com/drive/folders/${rootId}`,
+  }
+  for (const segmento of segmentos) {
+    const limpio = sanitizarNombreCarpeta(segmento)
+    if (!limpio) continue
+    actual = await crearCarpetaDrive(actual.id, limpio)
+  }
+  return actual
+}
+
 // Sube un archivo (buffer) a la carpeta indicada. Si ya existe uno con el
 // mismo nombre, lo reemplaza (nueva versión) para no acumular duplicados.
 export async function subirArchivoDrive(
@@ -205,6 +234,9 @@ export const obtenerMetadataArchivo = unstable_cache(
       const res = await drive.files.get({
         fileId,
         fields: 'id, name, mimeType, modifiedTime, webViewLink',
+        // Sin esto, un archivo que vive en una Unidad Compartida devuelve 404.
+        // Es el caso de todos los adjuntos de las altas.
+        supportsAllDrives: true,
       })
       return {
         id: res.data.id!,
