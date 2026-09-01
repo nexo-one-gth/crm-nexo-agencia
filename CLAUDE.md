@@ -35,7 +35,9 @@ El caso testigo es **Carolina Ferrari**: es `admin`, conduce 4 asesores y ademá
 
 ### Pendientes
 
-**Deploy:** Vercel dejó de tomar los push automáticamente. Si un cambio no aparece en producción, revisar en el dashboard y forzar *Redeploy* — el código puede estar en GitHub sin construir.
+**Deploy:** Vercel volvió a construir los push de `main` solo (verificado el 2026-09-01: el merge `fca31c1` construyó y promovió a producción sin intervención). Si aun así un cambio no aparece, revisar en el dashboard y forzar *Redeploy*.
+
+**Lo que sigue frenando deploys no es Vercel, son los PR:** GitHub mergea el commit que existía al abrir el PR, así que trabajo pusheado después queda fuera de `main` aunque el PR figure cerrado. Antes de dar una rama por terminada: `git merge-base --is-ancestor <rama> origin/main`.
 
 **Bloqueante antes de liquidar comisiones** (ver `REVISION_COMISIONES.md`):
 - Los 20 porcentajes de prepaga y los 10 de asesor están todos en `100` y **ninguno es real**. La prepaga paga 260 / 200 / 180 según prepaga y condición.
