@@ -18,6 +18,7 @@ import { deleteLeads } from '@/app/actions/lead-actions'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { getStageColor } from '@/lib/stage-colors'
+import { DISCARD_REASONS } from '@/lib/leads/discard-reasons'
 
 interface Lead {
     id: string
@@ -758,11 +759,9 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, condu
                                                     className="appearance-none pl-6 pr-2 py-1 rounded-lg text-[10px] font-bold bg-white/10 backdrop-blur-sm border border-white/20 text-slate-600 dark:text-slate-300 cursor-pointer"
                                                 >
                                                     <option value="all">Todos</option>
-                                                    <option value="No responde">No responde</option>
-                                                    <option value="Preexistencia">Preexistencia</option>
-                                                    <option value="Embarazo en curso">Embarazo en curso</option>
-                                                    <option value="Rango de edad incorrecto">Rango de edad</option>
-                                                    <option value="Solo consulta">Solo consulta</option>
+                                                    {DISCARD_REASONS.map(reason => (
+                                                        <option key={reason.value} value={reason.value}>{reason.shortLabel}</option>
+                                                    ))}
                                                 </select>
                                                 <Filter className="w-3 h-3 absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                                             </div>
@@ -821,11 +820,9 @@ export const LeadFunnelBoard = ({ initialLeads, isAdmin, isAdminPrincipal, condu
                                                 className="appearance-none pl-5 pr-2 py-0.5 rounded-lg text-[10px] font-bold bg-white/10 backdrop-blur-sm border border-white/20 text-slate-600 dark:text-slate-300 cursor-pointer hover:bg-white/20 transition-colors focus:outline-none"
                                             >
                                                 <option value="all">Todos</option>
-                                                <option value="No responde">No responde</option>
-                                                <option value="Preexistencia">Preexistencia</option>
-                                                <option value="Embarazo en curso">Embarazo en curso</option>
-                                                <option value="Rango de edad incorrecto">Rango de edad</option>
-                                                <option value="Solo consulta">Solo consulta</option>
+                                                {DISCARD_REASONS.map(reason => (
+                                                    <option key={reason.value} value={reason.value}>{reason.shortLabel}</option>
+                                                ))}
                                             </select>
                                             <Filter className="w-2.5 h-2.5 absolute left-1.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                                         </div>
