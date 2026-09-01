@@ -54,3 +54,14 @@ next-env.d.ts
 
 # Scratch: archivos a borrar a mano (el shell del bridge no puede hacer rm)
 _to_delete/
+
+# Skills espejadas para Codex/OpenAI: mismo contenido que .claude/skills pero con
+# rutas absolutas de la maquina local en los hooks. No es portable entre equipos.
+.agents/
+.codex/
+
+# Exports generados por el CRM: llevan datos personales de leads, no van al repo.
+exports/
+
+# Estado local de tareas programadas
+.claude/scheduled_tasks.lock

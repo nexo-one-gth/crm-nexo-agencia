@@ -1,7 +1,8 @@
 'use client'
 
 import { Phone, MessageCircle, ChevronDown, MessageSquare, Edit, CheckCircle2, AlertCircle, Users, ExternalLink, Trash2, Calculator, X } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
@@ -9,6 +10,7 @@ import { es } from 'date-fns/locale'
 import { updateLeadStage, deleteLeads } from '@/app/actions/lead-actions'
 import { calculateLeadCompletion, getCompletionColor } from '@/lib/utils/lead-completion'
 import { getStageColor } from '@/lib/stage-colors'
+import { DISCARD_REASON_GROUPS } from '@/lib/leads/discard-reasons'
 
 import { toast } from 'sonner'
 
@@ -63,14 +65,6 @@ interface LeadCardProps {
     } | null
 }
 
-const DISCARD_REASONS = [
-    'No responde',
-    'Preexistencia',
-    'Embarazo en curso',
-    'Rango de edad incorrecto',
-    'Solo consulta',
-]
-
 const FLAME_COLORS = ['text-slate-400', 'text-yellow-500', 'text-orange-500']
 
 // Etapas del embudo de medicina prepaga — el color de cada una viene de stage-colors.ts
@@ -100,21 +94,93 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
     const [isUpdatingStage, setIsUpdatingStage] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const discardRef = useRef<HTMLDivElement>(null)
+    const discardButtonRef = useRef<HTMLButtonElement>(null)
+    const discardMenuRef = useRef<HTMLDivElement>(null)
+    // El menú se dibuja en un portal sobre <body> con position: fixed, así que su
+    // posición hay que calcularla a mano a partir del rect del botón.
+    const [discardMenuPos, setDiscardMenuPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null)
     const router = useRouter()
 
     const hasQuoteData = lead.plan || lead.valor_final_socio || lead.valor_forecast
     const interestLevel = lead.interest_level ?? 0
 
     useEffect(() => {
+        if (!isDiscardOpen) return
         const handleClickOutside = (event: MouseEvent) => {
-            if (discardRef.current && !discardRef.current.contains(event.target as Node)) {
+            const target = event.target as Node
+            // Hay que chequear los dos refs: el menú vive en un portal fuera de la
+            // tarjeta, así que sin esto elegir un motivo contaría como click "afuera"
+            // y el menú se cerraría antes de que dispare el onClick de la opción.
+            if (discardRef.current?.contains(target)) return
+            if (discardMenuRef.current?.contains(target)) return
+            setIsDiscardOpen(false)
+        }
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
                 setIsDiscardOpen(false)
+                discardButtonRef.current?.focus()
             }
         }
-        if (isDiscardOpen) {
-            document.addEventListener('mousedown', handleClickOutside)
+        // El menú es fixed: no acompaña a la tarjeta cuando se scrollea la columna,
+        // así que se cierra en vez de quedar flotando en un lugar equivocado. Pero el
+        // propio menú puede tener scroll interno (maxHeight): ese no lo cierra.
+        const handleScroll = (event: Event) => {
+            const target = event.target as Node | null
+            if (target && discardMenuRef.current?.contains(target)) return
+            setIsDiscardOpen(false)
         }
-        return () => document.removeEventListener('mousedown', handleClickOutside)
+        document.addEventListener('mousedown', handleClickOutside)
+        document.addEventListener('keydown', handleKeyDown)
+        window.addEventListener('scroll', handleScroll, true)
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+            document.removeEventListener('keydown', handleKeyDown)
+            window.removeEventListener('scroll', handleScroll, true)
+        }
+    }, [isDiscardOpen])
+
+    // Posicionamiento del menú: se mide después de montarlo (por eso useLayoutEffect,
+    // para no mostrar un frame en la posición equivocada), se da vuelta hacia abajo si
+    // arriba no entra y se recorta a los bordes del viewport.
+    useLayoutEffect(() => {
+        if (!isDiscardOpen) {
+            setDiscardMenuPos(null)
+            return
+        }
+        const positionMenu = () => {
+            const button = discardButtonRef.current
+            const menu = discardMenuRef.current
+            if (!button || !menu) return
+            const MARGIN = 8
+            const GAP = 6
+            const buttonRect = button.getBoundingClientRect()
+            const menuWidth = menu.offsetWidth
+            const menuHeight = menu.scrollHeight
+            const viewportWidth = window.innerWidth
+            const viewportHeight = window.innerHeight
+
+            const spaceAbove = buttonRect.top - MARGIN - GAP
+            const spaceBelow = viewportHeight - buttonRect.bottom - MARGIN - GAP
+            // Preferimos abrir hacia arriba (el botón está al pie de la tarjeta y así no
+            // tapa la tarjeta siguiente), pero si no entra y abajo sobra lugar, lo damos vuelta.
+            const openUp = spaceAbove >= menuHeight || spaceAbove >= spaceBelow
+            const maxHeight = Math.max(140, Math.min(menuHeight, openUp ? spaceAbove : spaceBelow))
+            const effectiveHeight = Math.min(menuHeight, maxHeight)
+
+            const top = openUp
+                ? Math.max(MARGIN, buttonRect.top - GAP - effectiveHeight)
+                : Math.min(viewportHeight - MARGIN - effectiveHeight, buttonRect.bottom + GAP)
+            // Alineado a la derecha del botón, pero sin salirse por el costado: las
+            // columnas del embudo miden entre 210px y 320px.
+            const left = Math.min(
+                Math.max(MARGIN, buttonRect.right - menuWidth),
+                Math.max(MARGIN, viewportWidth - menuWidth - MARGIN)
+            )
+            setDiscardMenuPos({ top, left, maxHeight })
+        }
+        positionMenu()
+        window.addEventListener('resize', positionMenu)
+        return () => window.removeEventListener('resize', positionMenu)
     }, [isDiscardOpen])
 
     const handleWhatsApp = (e: React.MouseEvent) => {
@@ -306,27 +372,58 @@ export const LeadCard = ({ lead, isSelected, onSelect, isAdmin, userProfile, com
                                 )}
                                 <div className="relative">
                                     <button
+                                        ref={discardButtonRef}
                                         onClick={(e) => { e.stopPropagation(); setIsDiscardOpen(prev => !prev) }}
                                         disabled={isUpdatingStage}
                                         aria-label="Marcar como No Interesado"
+                                        aria-haspopup="menu"
+                                        aria-expanded={isDiscardOpen}
                                         title="No interesado"
-                                        className="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-500 text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50 disabled:pointer-events-none"
+                                        className={`py-2 px-2.5 rounded-xl text-[10px] font-bold transition-all active:scale-95 flex items-center gap-1 disabled:opacity-50 disabled:pointer-events-none ${isDiscardOpen ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-500' : 'bg-slate-100 hover:bg-rose-100 dark:bg-slate-800 dark:hover:bg-rose-500/20 text-slate-500 hover:text-rose-500'}`}
                                     >
                                         <X className="w-3 h-3" />
                                     </button>
-                                    {isDiscardOpen && (
-                                        <div className="absolute bottom-full right-0 mb-1 w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl shadow-xl z-50 overflow-hidden">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-3 pt-2 pb-1">Motivo de descarte</p>
-                                            {DISCARD_REASONS.map(reason => (
-                                                <button
-                                                    key={reason}
-                                                    onClick={(e) => { e.stopPropagation(); handleDiscard(reason) }}
-                                                    className="w-full text-left px-3 py-2 text-[11px] text-slate-700 dark:text-slate-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                                    {/* Portal a <body>: la tarjeta tiene overflow-hidden y un transform en hover,
+                                        y la columna del embudo tiene overflow-y-auto. Cualquiera de los tres recorta
+                                        un menú absolute, y el z-index no puede contra overflow: hidden. */}
+                                    {isDiscardOpen && createPortal(
+                                        <div
+                                            ref={discardMenuRef}
+                                            role="menu"
+                                            aria-label="Motivo de descarte"
+                                            onClick={(e) => e.stopPropagation()}
+                                            style={{
+                                                top: discardMenuPos?.top ?? 0,
+                                                left: discardMenuPos?.left ?? 0,
+                                                maxHeight: discardMenuPos?.maxHeight,
+                                                // Se monta invisible para poder medirlo sin que parpadee en 0,0.
+                                                visibility: discardMenuPos ? 'visible' : 'hidden',
+                                            }}
+                                            className="fixed w-52 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl shadow-2xl z-[120] overflow-y-auto custom-scrollbar"
+                                        >
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-3 pt-1.5 pb-1">Motivo de descarte</p>
+                                            {DISCARD_REASON_GROUPS.map((group, groupIndex) => (
+                                                <div
+                                                    key={group.key}
+                                                    className={groupIndex > 0 ? 'mt-1 pt-1.5 border-t border-slate-100 dark:border-white/5' : ''}
                                                 >
-                                                    {reason}
-                                                </button>
+                                                    <p className="text-[8px] font-bold uppercase tracking-wider text-slate-300 dark:text-slate-500 px-3 pb-0.5">
+                                                        {group.label}
+                                                    </p>
+                                                    {group.reasons.map(reason => (
+                                                        <button
+                                                            key={reason.value}
+                                                            role="menuitem"
+                                                            onClick={(e) => { e.stopPropagation(); handleDiscard(reason.value) }}
+                                                            className="w-full text-left px-3 py-2 text-[11px] text-slate-700 dark:text-slate-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                                                        >
+                                                            {reason.value}
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             ))}
-                                        </div>
+                                        </div>,
+                                        document.body
                                     )}
                                 </div>
                             </div>
