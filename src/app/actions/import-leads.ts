@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { assertAdmin } from '@/lib/supabase/assert-admin'
 import type { TablesInsert } from '@/lib/supabase/types'
 import * as XLSX from 'xlsx'
@@ -211,7 +212,8 @@ export async function importLeadsAction(formData: FormData) {
                     last_name: lastName,
                     phone: validated.CELULAR,
                     email: validated.MAIL || null,
-                    dni: validated.DNI && validated.DNI.trim() !== '' ? validated.DNI.trim() : null,
+                    // DNI normalizado a solo dígitos ("12.345.678" y "12345678" son el mismo DNI)
+                    dni: (validated.DNI || '').replace(/\D/g, '') || null,
                     address_state: validated.PROVINCIA || null,
                     address_city: validated.LOCALIDAD || null,
                     pipeline_stage_id: stage.id,
@@ -239,10 +241,53 @@ export async function importLeadsAction(formData: FormData) {
             })
         }
 
+        // --- Chequeo de DNI duplicado ---------------------------------------------------
+        // 1) contra el CRM completo (leads activos de TODOS los equipos) y 2) dentro del propio archivo.
+        // Se usa el cliente admin a propósito: con el cliente del usuario, el RLS ocultaría los leads
+        // de otros equipos y el aviso fallaría justo en esos casos. Solo se informa "ya existe", sin datos del lead.
+        const soloDigitos = (s: string | null | undefined) => (s || '').replace(/\D/g, '')
+        const conPuntos = (d: string) => d.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+        const dnisArchivo = Array.from(new Set(validRows.map(r => soloDigitos(r.data.dni)).filter(d => d.length > 0)))
+        const dnisExistentes = new Set<string>()
+        if (dnisArchivo.length > 0) {
+            const admin = createAdminClient()
+            for (let i = 0; i < dnisArchivo.length; i += 150) {
+                const lote = dnisArchivo.slice(i, i + 150)
+                const variantes = lote.flatMap(d => [d, conPuntos(d)])
+                const { data: existentes, error: dupError } = await admin
+                    .from('leads')
+                    .select('dni')
+                    .is('deleted_at', null)
+                    .in('dni', variantes)
+                // Si no se puede verificar, no se importa nada: mejor frenar que cargar duplicados sin aviso.
+                if (dupError) return { success: false, error: `No se pudo verificar DNI duplicados, no se importó nada: ${dupError.message}` }
+                existentes?.forEach(e => {
+                    const d = soloDigitos(e.dni)
+                    if (d) dnisExistentes.add(d)
+                })
+            }
+        }
+
+        const vistosEnArchivo = new Set<string>()
+        const filasAImportar = validRows.filter(r => {
+            const d = soloDigitos(r.data.dni)
+            if (!d) return true
+            if (dnisExistentes.has(d)) {
+                errors.push({ row: r.rowIndex, error: `DNI ya cargado en el CRM: ${d}` })
+                return false
+            }
+            if (vistosEnArchivo.has(d)) {
+                errors.push({ row: r.rowIndex, error: `DNI repetido dentro del archivo: ${d}` })
+                return false
+            }
+            vistosEnArchivo.add(d)
+            return true
+        })
+
         // Batch insert en lotes de 100 para manejar duplicados por lote
         const BATCH_SIZE = 100
-        for (let b = 0; b < validRows.length; b += BATCH_SIZE) {
-            const batch = validRows.slice(b, b + BATCH_SIZE)
+        for (let b = 0; b < filasAImportar.length; b += BATCH_SIZE) {
+            const batch = filasAImportar.slice(b, b + BATCH_SIZE)
             const { error: batchError } = await supabase
                 .from('leads')
                 .insert(batch.map(r => r.data))
@@ -273,6 +318,7 @@ export async function importLeadsAction(formData: FormData) {
             }
         }
 
+        errors.sort((a, b) => a.row - b.row)
         revalidatePath('/funnel')
         return {
             success: true,
